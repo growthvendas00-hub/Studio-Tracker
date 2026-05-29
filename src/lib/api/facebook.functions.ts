@@ -79,16 +79,16 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       const inc    = TIME_INCREMENT[period];
       const FIELDS = "spend,actions,action_values";
 
-      // 1. Busca ad accounts do business manager
+      // 1. Busca ad accounts acessíveis pelo token (independe do tipo de business ID)
       const acRes  = await fetch(
-        `${GRAPH}/${businessId}/adaccounts?fields=id,name&limit=10&access_token=${token}`
+        `${GRAPH}/me/adaccounts?fields=id,name&limit=10&access_token=${token}`
       );
       const acJson = await acRes.json();
       if (acJson.error) return { success: false as const, error: acJson.error.message };
 
       const adAccounts: string[] = (acJson.data ?? []).map((a: any) => a.id);
       if (adAccounts.length === 0)
-        return { success: false as const, error: "Nenhuma conta de anúncio encontrada no Business Manager." };
+        return { success: false as const, error: "Nenhuma conta de anúncio encontrada para este token." };
 
       const acId = adAccounts[0]; // usa a primeira conta
 

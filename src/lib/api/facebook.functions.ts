@@ -1,181 +1,188 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const GRAPH_API_URL = "https://graph.instagram.com";
+const GRAPH = "https://graph.facebook.com/v21.0";
 
-// Valida access token e retorna dados da conta
-export const validateFacebookToken = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ accessToken: z.string().min(1) }))
-  .handler(async ({ data }) => {
-    try {
-      const { accessToken } = data;
-      const businessAccountId = process.env.META_BUSINESS_ACCOUNT_ID;
+const DATE_PRESET: Record<string, string> = {
+  "Hoje":    "today",
+  "7 dias":  "last_7d",
+  "30 dias": "last_30d",
+  "Mês":     "this_month",
+};
 
-      if (!businessAccountId) {
-        return {
-          success: false,
-          error: "META_BUSINESS_ACCOUNT_ID não configurado no servidor",
-        };
-      }
+const TIME_INCREMENT: Record<string, string> = {
+  "Hoje":    "1",
+  "7 dias":  "1",
+  "30 dias": "7",
+  "Mês":     "7",
+};
 
-      // Testa o token validando a conta
-      const response = await fetch(
-        `${GRAPH_API_URL}/${businessAccountId}?fields=id,name,currency&access_token=${accessToken}`
-      );
+const CHART_LABEL: Record<string, string> = {
+  "Hoje":    "Hoje",
+  "7 dias":  "Últimos 7 dias",
+  "30 dias": "Últimos 30 dias",
+  "Mês":     "Este mês",
+};
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        return {
-          success: false,
-          error: errorData.error?.message || "Token inválido ou expirado",
-        };
-      }
+const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-      const accountData = await response.json();
+function creds() {
+  const token      = process.env.META_ACCESS_TOKEN;
+  const businessId = process.env.META_BUSINESS_ACCOUNT_ID;
+  if (!token || !businessId)
+    throw new Error("Credenciais Meta não configuradas no servidor (META_ACCESS_TOKEN / META_BUSINESS_ACCOUNT_ID)");
+  return { token, businessId };
+}
 
-      return {
-        success: true,
-        account: {
-          id: accountData.id,
-          name: accountData.name,
-          currency: accountData.currency,
-        },
-        message: "Token validado com sucesso",
-      };
-    } catch (error) {
-      console.error("Erro ao validar token:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Erro desconhecido",
-      };
-    }
-  });
+function parsePurchases(insight: any) {
+  const investido = parseFloat(insight?.spend ?? "0");
 
-// Lista campanhas ativas do business account
-export const fetchFacebookCampaigns = createServerFn({ method: "POST" })
+  const purchaseAction = insight?.actions?.find(
+    (a: any) => a.action_type === "purchase" || a.action_type === "omni_purchase"
+  );
+  const compras = parseInt(purchaseAction?.value ?? "0", 10);
+
+  const purchaseValue = insight?.action_values?.find(
+    (a: any) => a.action_type === "purchase" || a.action_type === "omni_purchase"
+  );
+  const retorno = parseFloat(purchaseValue?.value ?? "0");
+
+  return {
+    investido,
+    compras,
+    retorno,
+    roas:        investido > 0 ? retorno / investido : 0,
+    cpa:         compras  > 0 ? investido / compras  : 0,
+    ticketMedio: compras  > 0 ? retorno  / compras   : 0,
+  };
+}
+
+function dayLabel(dateStr: string, period: string) {
+  const d = new Date(dateStr + "T12:00:00");
+  if (period === "7 dias") return WEEK_DAYS[d.getDay()];
+  if (period === "Hoje")   return "Hoje";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+}
+
+function round2(n: number) { return Math.round(n * 100) / 100; }
+
+// ─── Única função pública — chamada pelo Dashboard ─────────────────────────
+
+export const fetchDashboardData = createServerFn({ method: "GET" })
   .inputValidator(
-    z.object({
-      accessToken: z.string().min(1),
-      businessAccountId: z.string().min(1),
-    })
+    z.object({ period: z.enum(["Hoje", "7 dias", "30 dias", "Mês"]) })
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data: { period } }) => {
     try {
-      const { accessToken, businessAccountId } = data;
+      const { token, businessId } = creds();
+      const preset = DATE_PRESET[period];
+      const inc    = TIME_INCREMENT[period];
+      const FIELDS = "spend,actions,action_values";
 
-      // Busca ad accounts sob o business account
-      const accountsResponse = await fetch(
-        `${GRAPH_API_URL}/${businessAccountId}/adaccounts?fields=id,name,currency&access_token=${accessToken}`
+      // 1. Busca ad accounts do business manager
+      const acRes  = await fetch(
+        `${GRAPH}/${businessId}/adaccounts?fields=id,name&limit=10&access_token=${token}`
       );
+      const acJson = await acRes.json();
+      if (acJson.error) return { success: false as const, error: acJson.error.message };
 
-      if (!accountsResponse.ok) {
-        return {
-          success: false,
-          error: "Falha ao buscar contas de anúncio",
-          campaigns: [],
-        };
-      }
+      const adAccounts: string[] = (acJson.data ?? []).map((a: any) => a.id);
+      if (adAccounts.length === 0)
+        return { success: false as const, error: "Nenhuma conta de anúncio encontrada no Business Manager." };
 
-      const { data: accounts } = await accountsResponse.json();
+      const acId = adAccounts[0]; // usa a primeira conta
 
-      if (!accounts || accounts.length === 0) {
-        return {
-          success: true,
-          campaigns: [],
-          message: "Nenhuma conta de anúncio encontrada",
-        };
-      }
-
-      const campaigns = [];
-
-      // Para cada ad account, busca campanhas
-      for (const account of accounts) {
-        const campaignResponse = await fetch(
-          `${GRAPH_API_URL}/${account.id}/campaigns?fields=id,name,status,created_time,daily_budget,lifetime_budget,objective&limit=100&access_token=${accessToken}`
-        );
-
-        if (!campaignResponse.ok) continue;
-
-        const { data: accountCampaigns } = await campaignResponse.json();
-
-        if (accountCampaigns) {
-          campaigns.push(
-            ...accountCampaigns.map((c: any) => ({
-              id: c.id,
-              name: c.name,
-              status: c.status,
-              objective: c.objective,
-              createdAt: c.created_time,
-              dailyBudget: c.daily_budget,
-              lifetimeBudget: c.lifetime_budget,
-              accountId: account.id,
-              accountName: account.name,
-            }))
-          );
-        }
-      }
-
-      return {
-        success: true,
-        campaigns: campaigns.sort(
-          (a: any, b: any) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      // 2. Busca tudo em paralelo
+      const [summaryRes, chartRes, campaignsRes, adsRes] = await Promise.all([
+        fetch(
+          `${GRAPH}/${acId}/insights?fields=${FIELDS}&date_preset=${preset}&access_token=${token}`
         ),
-        totalAccounts: accounts.length,
-        totalCampaigns: campaigns.length,
-      };
-    } catch (error) {
-      console.error("Erro ao buscar campanhas:", error);
+        fetch(
+          `${GRAPH}/${acId}/insights?fields=${FIELDS}&date_preset=${preset}&time_increment=${inc}&access_token=${token}`
+        ),
+        fetch(
+          `${GRAPH}/${acId}/campaigns?fields=id,name,status,insights.date_preset(${preset}){${FIELDS}}&limit=25&access_token=${token}`
+        ),
+        fetch(
+          `${GRAPH}/${acId}/ads?fields=id,name,creative{video_id},insights.date_preset(${preset}){${FIELDS},impressions,clicks}&limit=10&access_token=${token}`
+        ),
+      ]);
+
+      const [summaryJson, chartJson, campaignsJson, adsJson] = await Promise.all([
+        summaryRes.json(), chartRes.json(), campaignsRes.json(), adsRes.json(),
+      ]);
+
+      // 3. Summary
+      const m = parsePurchases(summaryJson.data?.[0]);
+
+      // 4. Chart
+      const chartData = (chartJson.data ?? []).map((d: any) => ({
+        dia:       dayLabel(d.date_start, period),
+        investido: parseFloat(d.spend ?? "0"),
+        retorno:   parseFloat(
+          d.action_values?.find((a: any) => a.action_type === "purchase" || a.action_type === "omni_purchase")?.value ?? "0"
+        ),
+      }));
+
+      // 5. Campanhas
+      const campaigns = (campaignsJson.data ?? [])
+        .filter((c: any) => c.status !== "DELETED" && c.status !== "ARCHIVED")
+        .map((c: any, i: number) => {
+          const cm = parsePurchases(c.insights?.data?.[0]);
+          return {
+            id:         i + 1,
+            nome:       c.name as string,
+            plataforma: "Meta Ads",
+            status:     (c.status === "ACTIVE" ? "ativa" : "pausada") as "ativa" | "pausada",
+            investido:  round2(cm.investido),
+            retorno:    round2(cm.retorno),
+            compras:    cm.compras,
+            roas:       round2(cm.roas),
+          };
+        })
+        .sort((a: any, b: any) => b.retorno - a.retorno);
+
+      // 6. Criativos (anúncios)
+      const creatives = (adsJson.data ?? [])
+        .map((ad: any, i: number) => {
+          const am    = parsePurchases(ad.insights?.data?.[0]);
+          const clicks = parseInt(ad.insights?.data?.[0]?.clicks ?? "0", 10);
+          const imp    = parseInt(ad.insights?.data?.[0]?.impressions ?? "0", 10);
+          const isVid  = !!ad.creative?.video_id;
+          return {
+            id:        i + 1,
+            nome:      ad.name as string,
+            tipo:      (isVid ? "Vídeo" : "Imagem") as "Vídeo" | "Imagem",
+            thumbnail: isVid ? "🎬" : "🖼️",
+            compras:   am.compras,
+            retorno:   round2(am.retorno),
+            ctr:       imp > 0 ? round2((clicks / imp) * 100) : 0,
+          };
+        })
+        .sort((a: any, b: any) => b.retorno - a.retorno)
+        .slice(0, 4);
+
       return {
-        success: false,
-        error: error instanceof Error ? error.message : "Erro desconhecido",
-        campaigns: [],
+        success: true as const,
+        summary: {
+          investido:   round2(m.investido),
+          retorno:     round2(m.retorno),
+          compras:     m.compras,
+          ticketMedio: round2(m.ticketMedio),
+          roas:        round2(m.roas),
+          cpa:         round2(m.cpa),
+          variacao: { investido: 0, retorno: 0, compras: 0, roas: 0, ticketMedio: 0 },
+        },
+        chartData,
+        campaigns,
+        creatives,
+        chartLabel: CHART_LABEL[period],
       };
-    }
-  });
-
-// Busca insights (métricas) de uma campanha para período
-export const fetchCampaignInsights = createServerFn({ method: "POST" })
-  .inputValidator(
-    z.object({
-      accessToken: z.string().min(1),
-      campaignId: z.string().min(1),
-      dateStart: z.string(), // YYYY-MM-DD
-      dateEnd: z.string(), // YYYY-MM-DD
-    })
-  )
-  .handler(async ({ data }) => {
-    try {
-      const { accessToken, campaignId, dateStart, dateEnd } = data;
-
-      const insightsResponse = await fetch(
-        `${GRAPH_API_URL}/${campaignId}/insights?` +
-          `fields=campaign_id,campaign_name,spend,impressions,clicks,actions,action_values,` +
-          `cost_per_action_type,cost_per_inline_post_engagement,purchase_roas` +
-          `&time_range={since:${dateStart},until:${dateEnd}}` +
-          `&access_token=${accessToken}`
-      );
-
-      if (!insightsResponse.ok) {
-        return {
-          success: false,
-          error: "Falha ao buscar métricas",
-          insights: null,
-        };
-      }
-
-      const insights = await insightsResponse.json();
-
+    } catch (err) {
+      console.error("[Facebook API]", err);
       return {
-        success: true,
-        insights: insights.data ? insights.data[0] : null,
-      };
-    } catch (error) {
-      console.error("Erro ao buscar insights:", error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Erro desconhecido",
-        insights: null,
+        success: false as const,
+        error: err instanceof Error ? err.message : "Erro ao buscar dados do Facebook",
       };
     }
   });

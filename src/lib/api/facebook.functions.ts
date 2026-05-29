@@ -79,16 +79,26 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       const inc    = TIME_INCREMENT[period];
       const FIELDS = "spend,actions,action_values";
 
-      // 1. Busca ad accounts acessíveis pelo token (independe do tipo de business ID)
+      // 1. Busca ad accounts do Business Manager pelo endpoint correto
       const acRes  = await fetch(
-        `${GRAPH}/me/adaccounts?fields=id,name&limit=10&access_token=${token}`
+        `${GRAPH}/${businessId}/owned_ad_accounts?fields=id,name&limit=10&access_token=${token}`
       );
       const acJson = await acRes.json();
-      if (acJson.error) return { success: false as const, error: acJson.error.message };
 
-      const adAccounts: string[] = (acJson.data ?? []).map((a: any) => a.id);
+      // Fallback: tenta client_ad_accounts se owned não retornar nada
+      let adAccounts: string[] = (acJson.data ?? []).map((a: any) => a.id);
+
+      if (!acJson.error && adAccounts.length === 0) {
+        const clientRes  = await fetch(
+          `${GRAPH}/${businessId}/client_ad_accounts?fields=id,name&limit=10&access_token=${token}`
+        );
+        const clientJson = await clientRes.json();
+        adAccounts = (clientJson.data ?? []).map((a: any) => a.id);
+      }
+
+      if (acJson.error) return { success: false as const, error: acJson.error.message };
       if (adAccounts.length === 0)
-        return { success: false as const, error: "Nenhuma conta de anúncio encontrada para este token." };
+        return { success: false as const, error: "Nenhuma conta de anúncio encontrada no Business Manager." };
 
       const acId = adAccounts[0]; // usa a primeira conta
 

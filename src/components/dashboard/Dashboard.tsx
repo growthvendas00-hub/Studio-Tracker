@@ -14,6 +14,7 @@ import { MetricCard } from "./MetricCard";
 import { PerformanceChart } from "./PerformanceChart";
 import { CampaignList } from "./CampaignList";
 import { CreativesList } from "./CreativesList";
+import { FacebookConnect } from "@/components/facebook/FacebookConnect";
 import { periods, getPeriodData } from "./data";
 import type { Period } from "./data";
 import { currency } from "@/lib/utils";
@@ -85,6 +86,11 @@ export function Dashboard() {
 
       {/* Main content lifted over header */}
       <main className="relative -mt-12 px-4 space-y-5">
+        {/* Facebook Connection */}
+        <section>
+          <FacebookConnect />
+        </section>
+
         {/* Hero metric */}
         <section
           className="relative overflow-hidden rounded-3xl border border-white/10 p-5 shadow-card backdrop-blur-xl"

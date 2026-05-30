@@ -20,7 +20,8 @@ export type PeriodSummary = {
   };
 };
 
-export type ChartPoint = { dia: string; investido: number; retorno: number };
+export type ChartPoint   = { dia: string; investido: number; retorno: number };
+export type HourlyPoint  = { hora: string; compras: number; retorno: number; investido: number };
 
 export type Campaign = {
   id: number;

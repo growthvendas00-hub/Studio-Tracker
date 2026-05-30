@@ -20,6 +20,7 @@ import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MetricCard } from "./MetricCard";
 import { PerformanceChart } from "./PerformanceChart";
+import { HourlyChart } from "./HourlyChart";
 import { CampaignList } from "./CampaignList";
 import { CreativesList } from "./CreativesList";
 import { periods } from "./data";
@@ -97,11 +98,21 @@ export function Dashboard() {
     ? data.error
     : "Falha ao conectar com o Facebook. Verifique as credenciais.";
 
-  const s          = ok ? data.summary   : null;
+  const s          = ok ? data.summary    : null;
   const chartData  = ok ? data.chartData  : [];
+  const hourlyData = ok ? data.hourlyData : [];
   const campaigns  = ok ? data.campaigns  : [];
   const creatives  = ok ? data.creatives  : [];
   const chartLabel = ok ? data.chartLabel : "—";
+
+  // Métrica do gráfico de horas (toggle)
+  const [hourlyMetric, setHourlyMetric] = useState<"retorno" | "compras">("retorno");
+
+  // Top 3 horários com maior retorno (apenas horas com dados)
+  const top3Hours = [...hourlyData]
+    .filter((h) => h.retorno > 0 || h.compras > 0)
+    .sort((a, b) => b[hourlyMetric] - a[hourlyMetric])
+    .slice(0, 3);
 
   return (
     <div className="min-h-screen bg-background pb-safe">
@@ -393,6 +404,71 @@ export function Dashboard() {
                 : <PerformanceChart data={chartData} />
               }
             </div>
+          </section>
+        )}
+
+        {/* ── Pico de Vendas por Hora ───────────────────────────── */}
+        {(isLoading || hourlyData.some(h => h.retorno > 0 || h.compras > 0)) && (
+          <section className="rounded-3xl border border-white/10 bg-card/80 p-5 shadow-soft backdrop-blur-xl">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="text-base font-bold text-foreground">Pico de Vendas</h2>
+                <p className="text-xs text-muted-foreground">Distribuição por hora do dia</p>
+              </div>
+              {/* Toggle retorno / compras */}
+              <div className="flex rounded-full border border-border overflow-hidden shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setHourlyMetric("retorno")}
+                  className={`px-3 py-1 text-[10px] font-semibold transition ${
+                    hourlyMetric === "retorno"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  R$
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHourlyMetric("compras")}
+                  className={`px-3 py-1 text-[10px] font-semibold transition ${
+                    hourlyMetric === "compras"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Qtd
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              {isLoading && !ok
+                ? <div className="h-40 rounded-xl bg-muted/30 animate-pulse" />
+                : <HourlyChart data={hourlyData} metric={hourlyMetric} />
+              }
+            </div>
+
+            {/* Top 3 horários de pico */}
+            {top3Hours.length > 0 && (
+              <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-4">
+                {top3Hours.map((h, i) => (
+                  <div key={h.hora} className={`rounded-2xl p-3 text-center ${
+                    i === 0 ? "bg-primary/20 border border-primary/30" : "bg-background/40"
+                  }`}>
+                    <p className="text-[10px] font-semibold text-muted-foreground">
+                      {i === 0 ? "🏆 1°" : i === 1 ? "🥈 2°" : "🥉 3°"}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{h.hora}</p>
+                    <p className={`text-[10px] font-semibold mt-0.5 ${i === 0 ? "text-primary" : "text-muted-foreground"}`}>
+                      {hourlyMetric === "retorno"
+                        ? `R$ ${h.retorno.toLocaleString("pt-BR")}`
+                        : `${h.compras} compra${h.compras !== 1 ? "s" : ""}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
 

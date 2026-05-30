@@ -171,17 +171,19 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
 
       const dp  = dateParam(period, since, until);
       const edp = embeddedDateParam(period, since, until);
+      const HOURLY_FIELDS = "spend,actions,action_values";
 
-      // 2. Busca tudo em paralelo
-      const [summaryRes, chartRes, campaignsRes, adsRes] = await Promise.all([
+      // 2. Busca tudo em paralelo (inclui breakdown por hora)
+      const [summaryRes, chartRes, campaignsRes, adsRes, hourlyRes] = await Promise.all([
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/ads?fields=id,name,creative{id,title,name,video_id},insights.${edp}{${FIELDS},impressions,clicks}&limit=50&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/insights?fields=${HOURLY_FIELDS}&${dp}&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&access_token=${token}`),
       ]);
 
-      const [summaryJson, chartJson, campaignsJson, adsJson] = await Promise.all([
-        summaryRes.json(), chartRes.json(), campaignsRes.json(), adsRes.json(),
+      const [summaryJson, chartJson, campaignsJson, adsJson, hourlyJson] = await Promise.all([
+        summaryRes.json(), chartRes.json(), campaignsRes.json(), adsRes.json(), hourlyRes.json(),
       ]);
 
       // 3. Summary com ROAS correto do Facebook
@@ -300,6 +302,22 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         ? withReturn
         : allCreatives.sort((a, b) => b.ctr - a.ctr).slice(0, 4);
 
+      // 8. Dados por hora do dia (pico de vendas)
+      // A API retorna "HH:00:00 - HH+1:00:00" no campo de breakdown
+      const hourlyRaw = hourlyJson.data ?? [];
+      const hourlyData = Array.from({ length: 24 }, (_, h) => {
+        const prefix = `${String(h).padStart(2, "0")}:`;
+        const point = hourlyRaw.find((d: any) =>
+          (d.hourly_stats_aggregated_by_advertiser_time_zone ?? "").startsWith(prefix)
+        );
+        return {
+          hora:      `${String(h).padStart(2, "0")}h`,
+          compras:   point ? getActionInt (point.actions       ?? [], "purchase", "omni_purchase") : 0,
+          retorno:   point ? round2(getActionValue(point.action_values ?? [], "purchase", "omni_purchase")) : 0,
+          investido: round2(parseFloat(point?.spend ?? "0")),
+        };
+      });
+
       return {
         success: true as const,
         summary: {
@@ -315,6 +333,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
           variacao: { investido: 0, retorno: 0, compras: 0, roas: 0, ticketMedio: 0 },
         },
         chartData,
+        hourlyData,
         campaigns,
         creatives,
         chartLabel: isCustom

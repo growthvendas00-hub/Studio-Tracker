@@ -38,7 +38,7 @@ export type Creative = {
   id: number;
   nome: string;
   tipo: "Vídeo" | "Imagem";
-  thumbnail: string;
+  thumbnail: string | null;
   compras: number;
   retorno: number;
   investido: number;

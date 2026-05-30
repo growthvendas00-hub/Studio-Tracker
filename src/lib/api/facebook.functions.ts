@@ -153,7 +153,9 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         : TIME_INCREMENT[period];
 
       // Campos de insights — purchase_roas é o ROAS calculado pelo próprio Facebook
-      const FIELDS = "spend,actions,action_values,purchase_roas,impressions,clicks";
+      const FIELDS    = "spend,actions,action_values,purchase_roas,impressions,clicks";
+      // Campos para breakdown por anúncio (sem duplicar impressions/clicks)
+      const AD_FIELDS = "ad_id,ad_name,spend,actions,action_values,purchase_roas,impressions,clicks";
 
       // 1. Ad accounts do Business Manager
       const acRes  = await fetch(
@@ -187,7 +189,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/insights?level=ad&fields=ad_id,ad_name,${FIELDS},impressions,clicks&${dp}&limit=100&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/insights?level=ad&fields=${AD_FIELDS}&${dp}&limit=100&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${HOURLY_FIELDS}&${dp}&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&access_token=${token}`),
       ]);
 
@@ -257,8 +259,25 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         .sort((a: any, b: any) => b.retorno - a.retorno);
 
       // 7. Anúncios individuais via insights level=ad
-      // adsJson.data retorna cada linha com ad_id, ad_name e métricas direto
       const adsData = adsJson.data ?? [];
+
+      // Busca thumbnails dos anúncios em paralelo (só se tiver dados)
+      let thumbMap: Record<string, string> = {};
+      if (adsData.length > 0) {
+        const adIds = adsData.slice(0, 20).map((a: any) => a.ad_id).filter(Boolean);
+        if (adIds.length > 0) {
+          try {
+            const thumbRes  = await fetch(
+              `${GRAPH}/?ids=${adIds.join(",")}&fields=id,creative{thumbnail_url}&access_token=${token}`
+            );
+            const thumbJson = await thumbRes.json();
+            for (const [id, adObj] of Object.entries(thumbJson as Record<string, any>)) {
+              const url = adObj?.creative?.thumbnail_url;
+              if (url) thumbMap[id] = url;
+            }
+          } catch { /* thumbnails opcionais */ }
+        }
+      }
 
       const adsList = adsData.map((ad: any, i: number) => {
         const am     = parsePurchases(ad);
@@ -266,9 +285,9 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         const imps   = parseInt(ad.impressions ?? "0", 10);
         return {
           id:        i + 1,
-          nome:      (ad.ad_name ?? ad.name ?? "Anúncio") as string,
+          nome:      (ad.ad_name ?? "Anúncio") as string,
           tipo:      "Imagem" as "Vídeo" | "Imagem",
-          thumbnail: "📊",
+          thumbnail: thumbMap[ad.ad_id] ?? null,
           compras:   am.compras,
           retorno:   round2(am.retorno),
           investido: round2(am.investido),
@@ -282,7 +301,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         id:        i + 1,
         nome:      c.nome,
         tipo:      "Imagem" as "Vídeo" | "Imagem",
-        thumbnail: "📊",
+        thumbnail: null as string | null,
         compras:   c.compras,
         retorno:   c.retorno,
         investido: c.investido,

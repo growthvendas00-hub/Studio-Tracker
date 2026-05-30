@@ -1,4 +1,4 @@
-export const periods = ["Hoje", "7 dias", "30 dias", "Mês"] as const;
+export const periods = ["Hoje", "Ontem", "7 dias", "30 dias", "Mês"] as const;
 export type Period = (typeof periods)[number];
 
 export type PeriodSummary = {

@@ -5,6 +5,7 @@ const GRAPH = "https://graph.facebook.com/v21.0";
 
 const DATE_PRESET: Record<string, string> = {
   "Hoje":    "today",
+  "Ontem":   "yesterday",
   "7 dias":  "last_7d",
   "30 dias": "last_30d",
   "Mês":     "this_month",
@@ -12,6 +13,7 @@ const DATE_PRESET: Record<string, string> = {
 
 const TIME_INCREMENT: Record<string, string> = {
   "Hoje":    "1",
+  "Ontem":   "1",
   "7 dias":  "1",
   "30 dias": "7",
   "Mês":     "7",
@@ -19,6 +21,7 @@ const TIME_INCREMENT: Record<string, string> = {
 
 const CHART_LABEL: Record<string, string> = {
   "Hoje":    "Hoje",
+  "Ontem":   "Ontem",
   "7 dias":  "Últimos 7 dias",
   "30 dias": "Últimos 30 dias",
   "Mês":     "Este mês",
@@ -126,7 +129,7 @@ function round2(n: number) { return Math.round(n * 100) / 100; }
 export const fetchDashboardData = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
-      period: z.enum(["Hoje", "7 dias", "30 dias", "Mês", "custom"]),
+      period: z.enum(["Hoje", "Ontem", "7 dias", "30 dias", "Mês", "custom"]),
       since:  z.string().optional(),
       until:  z.string().optional(),
     })

@@ -24,13 +24,16 @@ import { CampaignList } from "./CampaignList";
 import { CreativesList } from "./CreativesList";
 import { periods } from "./data";
 import type { Period } from "./data";
-import { currency } from "@/lib/utils";
+import { currency, currencyFull } from "@/lib/utils";
 import { fetchDashboardData } from "@/lib/api/facebook.functions";
 
 export function Dashboard() {
-  const [period, setPeriod] = useState<Period>("Hoje");
+  const [period, setPeriod]           = useState<Period>("Hoje");
   const [customRange, setCustomRange] = useState<DateRange | undefined>();
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen]   = useState(false);
+  // Calendário em 2 passos: "from" = aguardando 1ª data, "to" = aguardando 2ª
+  const [pickerStep, setPickerStep]   = useState<"from" | "to">("from");
+  const [pickerFrom, setPickerFrom]   = useState<Date | undefined>();
 
   const isCustom = !!(customRange?.from && customRange?.to);
 
@@ -41,6 +44,32 @@ export function Dashboard() {
   function selectPreset(p: Period) {
     setPeriod(p);
     setCustomRange(undefined);
+  }
+
+  function handlePickerOpenChange(open: boolean) {
+    setPickerOpen(open);
+    if (!open) {
+      setPickerStep("from");
+      setPickerFrom(undefined);
+    }
+  }
+
+  function handleDaySelect(date: Date | undefined) {
+    if (!date) return;
+    if (pickerStep === "from") {
+      // 1° clique — guarda data inicial, aguarda 2°
+      setPickerFrom(date);
+      setPickerStep("to");
+    } else if (pickerFrom) {
+      // 2° clique — finaliza o intervalo (mesmo dia = dia único)
+      let from = pickerFrom;
+      let to   = date;
+      if (to < from) [from, to] = [to, from];
+      setCustomRange({ from, to });
+      setPickerOpen(false);
+      setPickerStep("from");
+      setPickerFrom(undefined);
+    }
   }
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
@@ -140,7 +169,7 @@ export function Dashboard() {
             ))}
 
             {/* Seletor de data customizada */}
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <Popover open={pickerOpen} onOpenChange={handlePickerOpenChange}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
@@ -160,20 +189,28 @@ export function Dashboard() {
                 side="bottom"
                 sideOffset={8}
               >
+                {/* Hint de passo */}
+                <div className="px-4 pt-3 pb-1">
+                  <p className="text-xs font-semibold text-foreground">
+                    {pickerStep === "from" ? "Selecione a data inicial" : "Agora selecione a data final"}
+                  </p>
+                  {pickerStep === "to" && pickerFrom && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Início: {format(pickerFrom, "dd/MM/yyyy")}
+                    </p>
+                  )}
+                </div>
+
                 <CalendarPicker
-                  mode="range"
-                  selected={customRange}
-                  onSelect={(range) => {
-                    setCustomRange(range);
-                    if (range?.from && range?.to) {
-                      setPickerOpen(false);
-                    }
-                  }}
+                  mode="single"
+                  selected={pickerFrom}
+                  onSelect={handleDaySelect}
                   disabled={{ after: new Date() }}
                   locale={ptBR}
                   numberOfMonths={1}
-                  className="p-3"
+                  className="p-3 pt-1"
                 />
+
                 {isCustom && (
                   <div className="border-t border-border p-2">
                     <button
@@ -314,17 +351,19 @@ export function Dashboard() {
               </div>
             </div>
 
-            {/* Custo por visita — mostra sempre que há dados */}
+            {/* Custo por visita */}
             <div className="mt-4 rounded-2xl bg-background/40 px-4 py-3">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Custo por visita</p>
               <p className="mt-0.5 text-base font-bold text-foreground">
-                {s.profileVisits > 0
-                  ? currency(s.investidoTrafego / s.profileVisits)
+                {s.profileVisits > 0 && s.investidoTrafego > 0
+                  ? currencyFull(s.investidoTrafego / s.profileVisits)
                   : "—"}
               </p>
-              {s.profileVisits === 0 && (
+              {(s.profileVisits === 0 || s.investidoTrafego === 0) && (
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  Visitas não rastreadas neste período
+                  {s.investidoTrafego > 0
+                    ? "Visitas ao perfil não rastreadas neste período"
+                    : "Sem investimento em tráfego neste período"}
                 </p>
               )}
             </div>

@@ -19,7 +19,6 @@ import type { DateRange } from "react-day-picker";
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MetricCard } from "./MetricCard";
-import { PerformanceChart } from "./PerformanceChart";
 import { HourlyChart } from "./HourlyChart";
 import { CampaignList } from "./CampaignList";
 import { CreativesList } from "./CreativesList";
@@ -99,11 +98,9 @@ export function Dashboard() {
     : "Falha ao conectar com o Facebook. Verifique as credenciais.";
 
   const s          = ok ? data.summary    : null;
-  const chartData  = ok ? data.chartData  : [];
   const hourlyData = ok ? data.hourlyData : [];
   const campaigns  = ok ? data.campaigns  : [];
   const creatives  = ok ? data.creatives  : [];
-  const chartLabel = ok ? data.chartLabel : "—";
 
   // Métrica do gráfico de horas (toggle)
   const [hourlyMetric, setHourlyMetric] = useState<"retorno" | "compras">("retorno");
@@ -377,32 +374,6 @@ export function Dashboard() {
                     : "Sem investimento em tráfego neste período"}
                 </p>
               )}
-            </div>
-          </section>
-        )}
-
-        {/* ── Chart ──────────────────────────────────────────────── */}
-        {(isLoading || ok) && (
-          <section className="rounded-3xl border border-white/10 bg-card/80 p-5 shadow-soft backdrop-blur-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-foreground">Investimento × Retorno</h2>
-                <p className="text-xs text-muted-foreground">{chartLabel}</p>
-              </div>
-              <div className="flex items-center gap-3 text-[11px]">
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full bg-primary" /> Retorno
-                </span>
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <span className="h-2 w-2 rounded-full bg-muted-foreground/40" /> Invest.
-                </span>
-              </div>
-            </div>
-            <div className="mt-4 h-44">
-              {isLoading && !ok
-                ? <div className="h-full rounded-xl bg-muted/30 animate-pulse" />
-                : <PerformanceChart data={chartData} />
-              }
             </div>
           </section>
         )}

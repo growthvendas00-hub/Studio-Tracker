@@ -292,15 +292,22 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         ctr:       c.impressions > 0 ? round2((c.clicks / c.impressions) * 100) : 0,
       }));
 
-      // Mostra top 4 com retorno real; se nenhum tiver, mostra por CTR (engajamento)
+      // Prioridade: 1) com compras (ordena por compras) 2) com retorno 3) por CTR
+      const withPurchases = allCreatives
+        .filter(c => c.compras > 0)
+        .sort((a, b) => b.compras - a.compras)
+        .slice(0, 4);
+
       const withReturn = allCreatives
         .filter(c => c.retorno > 0)
         .sort((a, b) => b.retorno - a.retorno)
         .slice(0, 4);
 
-      const creatives = withReturn.length > 0
-        ? withReturn
-        : allCreatives.sort((a, b) => b.ctr - a.ctr).slice(0, 4);
+      const creatives = withPurchases.length > 0
+        ? withPurchases
+        : withReturn.length > 0
+          ? withReturn
+          : allCreatives.sort((a, b) => b.ctr - a.ctr).slice(0, 4);
 
       // 8. Dados por hora do dia (pico de vendas)
       // A API retorna "HH:00:00 - HH+1:00:00" no campo de breakdown

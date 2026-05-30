@@ -48,7 +48,7 @@ export function Dashboard() {
   const chartLabel = ok ? data.chartLabel : "—";
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-safe">
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="relative overflow-hidden">
         <div className="absolute inset-0" style={{ background: "var(--gradient-primary)" }} aria-hidden />
@@ -59,7 +59,7 @@ export function Dashboard() {
           aria-hidden
         />
 
-        <div className="relative px-5 pt-12 pb-20 text-primary-foreground">
+        <div className="relative px-5 pt-safe pb-20 text-primary-foreground">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium opacity-80">Painel de resultados</p>
@@ -77,7 +77,7 @@ export function Dashboard() {
           </div>
 
           {/* Period selector */}
-          <div className="mt-6 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+          <div className="mt-6 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 hide-scrollbar">
             {periods.map((p) => (
               <button
                 key={p}
@@ -142,7 +142,7 @@ export function Dashboard() {
             <div className="flex items-center justify-between">
               <p className="text-xs font-medium text-muted-foreground">Retorno bruto no período</p>
             </div>
-            <p className="mt-2 text-4xl font-bold tracking-tight text-foreground">
+            <p className="mt-2 text-3xl font-bold tracking-tight text-foreground truncate">
               {currency(s.retorno)}
             </p>
 
@@ -154,18 +154,18 @@ export function Dashboard() {
               </span>
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4">
-              <div>
+            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-4">
+              <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Investido</p>
-                <p className="mt-0.5 text-sm font-bold text-foreground">{currency(s.investido)}</p>
+                <p className="mt-0.5 text-xs font-bold text-foreground truncate">{currency(s.investido)}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">ROAS</p>
-                <p className="mt-0.5 text-sm font-bold text-foreground">{s.roas.toFixed(2)}x</p>
+                <p className="mt-0.5 text-xs font-bold text-foreground">{s.roas.toFixed(2)}x</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">CPA</p>
-                <p className="mt-0.5 text-sm font-bold text-foreground">{currency(s.cpa)}</p>
+                <p className="mt-0.5 text-xs font-bold text-foreground truncate">{currency(s.cpa)}</p>
               </div>
             </div>
           </section>

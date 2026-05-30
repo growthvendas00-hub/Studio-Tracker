@@ -13,23 +13,25 @@ export function CampaignList({ campaigns }: CampaignListProps) {
         return (
           <li
             key={c.id}
-            className="rounded-2xl border border-white/10 bg-card/80 p-4 shadow-soft backdrop-blur-xl transition active:scale-[0.99]"
+            className="rounded-2xl border border-white/10 bg-card/80 p-4 shadow-soft backdrop-blur-xl transition active:scale-[0.98]"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span
-                    className={`h-1.5 w-1.5 rounded-full ${
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
                       c.status === "ativa" ? "bg-success" : "bg-muted-foreground/50"
                     }`}
                   />
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground truncate">
                     {c.plataforma}
                   </p>
                 </div>
-                <p className="mt-1 truncate text-sm font-bold text-foreground">{c.nome}</p>
+                <p className="mt-1 line-clamp-2 text-sm font-bold text-foreground leading-snug">
+                  {c.nome}
+                </p>
               </div>
-              <div className="shrink-0 text-right">
+              <div className="shrink-0 text-right pl-1">
                 <p className={`text-sm font-bold ${lucrativa ? "text-success" : "text-warning"}`}>
                   {c.roas.toFixed(2)}x
                 </p>
@@ -38,8 +40,8 @@ export function CampaignList({ campaigns }: CampaignListProps) {
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3">
               <Stat label="Investido" value={currency(c.investido)} />
-              <Stat label="Retorno" value={currency(c.retorno)} />
-              <Stat label="Compras" value={c.compras.toString()} />
+              <Stat label="Retorno"   value={currency(c.retorno)} />
+              <Stat label="Compras"   value={c.compras.toString()} />
             </div>
           </li>
         );

@@ -122,6 +122,14 @@
 @layer base {
   * {
     border-color: var(--color-border);
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Impede iOS de aumentar fonte ao rotacionar */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -129,10 +137,33 @@
     color: var(--color-foreground);
     font-family: var(--font-display);
     -webkit-font-smoothing: antialiased;
+    /* Sem scroll horizontal em tela nenhuma */
+    overflow-x: hidden;
     background-image:
       radial-gradient(80% 50% at 100% 0%, oklch(0.45 0.25 305 / 0.35), transparent 60%),
       radial-gradient(70% 50% at 0% 20%, oklch(0.4 0.25 280 / 0.28), transparent 60%);
     background-attachment: fixed;
   }
+
+  button, a {
+    touch-action: manipulation;
+  }
+}
+
+/* Safe area — notch iPhone e home indicator */
+.pt-safe {
+  padding-top: max(3rem, calc(2.5rem + env(safe-area-inset-top)));
+}
+.pb-safe {
+  padding-bottom: max(6rem, calc(5rem + env(safe-area-inset-bottom)));
+}
+
+/* Scrollbar invisível mas scroll funcional (iOS e Android) */
+.hide-scrollbar {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 

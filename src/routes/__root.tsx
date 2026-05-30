@@ -75,14 +75,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Painel de Resultados — Tráfego Pago" },
       {
         name: "description",
-        content:
-          "Acompanhe o desempenho das suas campanhas de tráfego pago para delivery em tempo real.",
+        content: "Acompanhe o desempenho das suas campanhas de tráfego pago em tempo real.",
       },
       { name: "theme-color", content: "#1a0d2e" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "Painel Ads" },
+      { name: "mobile-web-app-capable", content: "yes" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

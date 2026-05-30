@@ -177,7 +177,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/ads?fields=id,name,creative{video_id},insights.${edp}{${FIELDS}}&limit=10&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/ads?fields=id,name,creative{id,title,name,video_id},insights.${edp}{${FIELDS},impressions,clicks}&limit=50&access_token=${token}`),
       ]);
 
       const [summaryJson, chartJson, campaignsJson, adsJson] = await Promise.all([
@@ -245,26 +245,60 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         })
         .sort((a: any, b: any) => b.retorno - a.retorno);
 
-      // 7. Criativos (anúncios)
-      const creatives = (adsJson.data ?? [])
-        .map((ad: any, i: number) => {
-          const am    = parsePurchases(ad.insights?.data?.[0]);
-          const ins   = ad.insights?.data?.[0];
-          const clicks = parseInt(ins?.clicks ?? "0", 10);
-          const imp    = parseInt(ins?.impressions ?? "0", 10);
-          const isVid  = !!ad.creative?.video_id;
-          return {
-            id:        i + 1,
-            nome:      ad.name as string,
-            tipo:      (isVid ? "Vídeo" : "Imagem") as "Vídeo" | "Imagem",
-            thumbnail: isVid ? "🎬" : "🖼️",
-            compras:   am.compras,
-            retorno:   round2(am.retorno),
-            ctr:       imp > 0 ? round2((clicks / imp) * 100) : 0,
-          };
-        })
-        .sort((a: any, b: any) => b.retorno - a.retorno)
+      // 7. Criativos — agrupados por creative.id (evita duplicatas do mesmo criativo em vários anúncios)
+      const creativeMap = new Map<string, {
+        nome: string; tipo: "Vídeo" | "Imagem"; thumbnail: string;
+        compras: number; retorno: number; clicks: number; impressions: number;
+      }>();
+
+      for (const ad of adsJson.data ?? []) {
+        const cId    = ad.creative?.id ?? ad.id;
+        // Prioridade de nome: título do criativo → nome do criativo → nome do anúncio
+        const cName  = ad.creative?.title || ad.creative?.name || ad.name;
+        const isVid  = !!ad.creative?.video_id;
+        const ins    = ad.insights?.data?.[0];
+        const am     = parsePurchases(ins);
+        const clicks = parseInt(ins?.clicks      ?? "0", 10);
+        const imps   = parseInt(ins?.impressions ?? "0", 10);
+
+        if (creativeMap.has(cId)) {
+          const e = creativeMap.get(cId)!;
+          e.compras     += am.compras;
+          e.retorno     += am.retorno;
+          e.clicks      += clicks;
+          e.impressions += imps;
+        } else {
+          creativeMap.set(cId, {
+            nome:        cName,
+            tipo:        isVid ? "Vídeo" : "Imagem",
+            thumbnail:   isVid ? "🎬" : "🖼️",
+            compras:     am.compras,
+            retorno:     am.retorno,
+            clicks,
+            impressions: imps,
+          });
+        }
+      }
+
+      const allCreatives = Array.from(creativeMap.values()).map((c, i) => ({
+        id:        i + 1,
+        nome:      c.nome,
+        tipo:      c.tipo,
+        thumbnail: c.thumbnail,
+        compras:   c.compras,
+        retorno:   round2(c.retorno),
+        ctr:       c.impressions > 0 ? round2((c.clicks / c.impressions) * 100) : 0,
+      }));
+
+      // Mostra top 4 com retorno real; se nenhum tiver, mostra por CTR (engajamento)
+      const withReturn = allCreatives
+        .filter(c => c.retorno > 0)
+        .sort((a, b) => b.retorno - a.retorno)
         .slice(0, 4);
+
+      const creatives = withReturn.length > 0
+        ? withReturn
+        : allCreatives.sort((a, b) => b.ctr - a.ctr).slice(0, 4);
 
       return {
         success: true as const,

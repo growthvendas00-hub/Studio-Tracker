@@ -11,7 +11,13 @@ import {
   RefreshCw,
   AlertCircle,
   Eye,
+  X,
 } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MetricCard } from "./MetricCard";
 import { PerformanceChart } from "./PerformanceChart";
 import { CampaignList } from "./CampaignList";
@@ -23,10 +29,34 @@ import { fetchDashboardData } from "@/lib/api/facebook.functions";
 
 export function Dashboard() {
   const [period, setPeriod] = useState<Period>("7 dias");
+  const [customRange, setCustomRange] = useState<DateRange | undefined>();
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const isCustom = !!(customRange?.from && customRange?.to);
+
+  const customLabel = isCustom
+    ? `${format(customRange!.from!, "dd/MM")} – ${format(customRange!.to!, "dd/MM")}`
+    : "Período";
+
+  function selectPreset(p: Period) {
+    setPeriod(p);
+    setCustomRange(undefined);
+  }
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ["dashboard", period],
-    queryFn: () => fetchDashboardData({ data: { period } }),
+    queryKey: ["dashboard", isCustom ? "custom" : period, customRange?.from, customRange?.to],
+    queryFn: () => {
+      if (isCustom) {
+        return fetchDashboardData({
+          data: {
+            period: "custom",
+            since: format(customRange!.from!, "yyyy-MM-dd"),
+            until: format(customRange!.to!, "yyyy-MM-dd"),
+          },
+        });
+      }
+      return fetchDashboardData({ data: { period } });
+    },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 1,
@@ -96,10 +126,10 @@ export function Dashboard() {
               <button
                 key={p}
                 type="button"
-                aria-pressed={period === p}
-                onClick={() => setPeriod(p)}
+                aria-pressed={!isCustom && period === p}
+                onClick={() => selectPreset(p)}
                 className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition ${
-                  period === p
+                  !isCustom && period === p
                     ? "bg-white text-primary shadow-soft"
                     : "bg-white/15 text-primary-foreground hover:bg-white/25"
                 }`}
@@ -108,6 +138,55 @@ export function Dashboard() {
                 {p}
               </button>
             ))}
+
+            {/* Seletor de data customizada */}
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition ${
+                    isCustom
+                      ? "bg-white text-primary shadow-soft"
+                      : "bg-white/15 text-primary-foreground hover:bg-white/25"
+                  }`}
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  {customLabel}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-auto p-0 border-border bg-card shadow-card"
+                align="start"
+                side="bottom"
+                sideOffset={8}
+              >
+                <CalendarPicker
+                  mode="range"
+                  selected={customRange}
+                  onSelect={(range) => {
+                    setCustomRange(range);
+                    if (range?.from && range?.to) {
+                      setPickerOpen(false);
+                    }
+                  }}
+                  disabled={{ after: new Date() }}
+                  locale={ptBR}
+                  numberOfMonths={1}
+                  className="p-3"
+                />
+                {isCustom && (
+                  <div className="border-t border-border p-2">
+                    <button
+                      type="button"
+                      onClick={() => { setCustomRange(undefined); setPickerOpen(false); }}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-xs text-muted-foreground hover:text-foreground transition"
+                    >
+                      <X className="h-3 w-3" /> Limpar filtro
+                    </button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </header>

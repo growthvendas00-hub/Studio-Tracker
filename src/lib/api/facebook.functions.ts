@@ -24,6 +24,37 @@ const CHART_LABEL: Record<string, string> = {
   "Mês":     "Este mês",
 };
 
+// Para período customizado, calcula o time_increment adequado
+function customIncrement(since: string, until: string): string {
+  const days = Math.ceil(
+    (new Date(until).getTime() - new Date(since).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  if (days <= 14) return "1";
+  if (days <= 60) return "7";
+  return "30";
+}
+
+// Monta o parâmetro de data para URLs de insights
+function dateParam(period: string, since?: string, until?: string): string {
+  if (period === "custom" && since && until) {
+    return `time_range=${encodeURIComponent(JSON.stringify({ since, until }))}`;
+  }
+  return `date_preset=${DATE_PRESET[period]}`;
+}
+
+// Sintaxe para insights embutidos em campanhas/ads
+function embeddedDateParam(period: string, since?: string, until?: string): string {
+  if (period === "custom" && since && until) {
+    return `time_range({"since":"${since}","until":"${until}"})`;
+  }
+  return `date_preset(${DATE_PRESET[period]})`;
+}
+
+function fmtDatePtBR(d: string) {
+  const [y, m, day] = d.split("-");
+  return `${day}/${m}/${y}`;
+}
+
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 // Tipos de ação que indicam visita ao perfil Instagram
@@ -94,13 +125,20 @@ function round2(n: number) { return Math.round(n * 100) / 100; }
 
 export const fetchDashboardData = createServerFn({ method: "GET" })
   .inputValidator(
-    z.object({ period: z.enum(["Hoje", "7 dias", "30 dias", "Mês"]) })
+    z.object({
+      period: z.enum(["Hoje", "7 dias", "30 dias", "Mês", "custom"]),
+      since:  z.string().optional(),
+      until:  z.string().optional(),
+    })
   )
-  .handler(async ({ data: { period } }) => {
+  .handler(async ({ data }) => {
+    const { period, since, until } = data;
     try {
       const { token, businessId } = creds();
-      const preset = DATE_PRESET[period];
-      const inc    = TIME_INCREMENT[period];
+      const isCustom = period === "custom" && !!since && !!until;
+      const inc = isCustom
+        ? customIncrement(since!, until!)
+        : TIME_INCREMENT[period];
 
       // Campos de insights — purchase_roas é o ROAS calculado pelo próprio Facebook
       const FIELDS = "spend,actions,action_values,purchase_roas,impressions,clicks";
@@ -128,12 +166,15 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
 
       const acId = adAccounts[0];
 
+      const dp  = dateParam(period, since, until);
+      const edp = embeddedDateParam(period, since, until);
+
       // 2. Busca tudo em paralelo
       const [summaryRes, chartRes, campaignsRes, adsRes] = await Promise.all([
-        fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&date_preset=${preset}&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&date_preset=${preset}&time_increment=${inc}&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.date_preset(${preset}){${FIELDS}}&limit=50&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/ads?fields=id,name,creative{video_id},insights.date_preset(${preset}){${FIELDS}}&limit=10&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/ads?fields=id,name,creative{video_id},insights.${edp}{${FIELDS}}&limit=10&access_token=${token}`),
       ]);
 
       const [summaryJson, chartJson, campaignsJson, adsJson] = await Promise.all([
@@ -178,7 +219,9 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
 
       // 5. Chart
       const chartData = (chartJson.data ?? []).map((d: any) => ({
-        dia:       dayLabel(d.date_start, period),
+        dia: isCustom
+          ? new Date(d.date_start + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
+          : dayLabel(d.date_start, period),
         investido: parseFloat(d.spend ?? "0"),
         retorno:   getActionValue(d.action_values ?? [], "purchase", "omni_purchase"),
       }));
@@ -242,7 +285,9 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         chartData,
         campaigns,
         creatives,
-        chartLabel: CHART_LABEL[period],
+        chartLabel: isCustom
+          ? `${fmtDatePtBR(since!)} a ${fmtDatePtBR(until!)}`
+          : CHART_LABEL[period],
       };
     } catch (err) {
       console.error("[Facebook API]", err);

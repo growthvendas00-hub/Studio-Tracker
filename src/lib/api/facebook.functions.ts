@@ -200,30 +200,27 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       // 3. Summary com ROAS correto do Facebook
       const m = parsePurchases(summaryJson.data?.[0]);
 
-      // 4. Visitas ao perfil — pega direto dos insights da conta (mais confiável que filtrar por campanha)
-      const allCampaigns  = campaignsJson.data ?? [];
-      const accountActions = summaryJson.data?.[0]?.actions ?? [];
+      // 4. Visitas ao perfil e investimento em tráfego
+      // Filtra APENAS campanhas que geraram visitas ao perfil (não conta inteira)
+      const allCampaigns = campaignsJson.data ?? [];
 
-      // Visitas ao perfil do Instagram (conta inteira)
-      let profileVisits = getActionInt(accountActions, ...PROFILE_VISIT_ACTIONS);
-
-      // Fallback: se não encontrou visitas específicas, usa link_clicks de tráfego
-      if (profileVisits === 0) {
-        profileVisits = getActionInt(accountActions,
-          "link_click", "landing_page_view", "view_content"
-        );
-      }
-
-      // investidoTrafego = gasto em campanhas que NÃO geraram nenhuma compra
-      // (independente do objetivo cadastrado, pois o objetivo pode variar)
+      let profileVisits   = 0;
       let investidoTrafego = 0;
+
       for (const c of allCampaigns) {
-        const insight  = c.insights?.data?.[0];
+        const insight = c.insights?.data?.[0];
         if (!insight) continue;
-        const spend    = parseFloat(insight.spend ?? "0");
-        if (spend === 0) continue;
-        const purchases = getActionInt(insight.actions ?? [], "purchase", "omni_purchase");
-        if (purchases === 0) {
+        const spend     = parseFloat(insight.spend ?? "0");
+        const actions   = insight.actions ?? [];
+        const purchases = getActionInt(actions, ...PURCHASE_ACTIONS);
+        const visits    = getActionInt(actions, ...PROFILE_VISIT_ACTIONS);
+
+        // Só conta nesta seção se a campanha gerou visitas ao perfil
+        if (visits > 0) {
+          profileVisits    += visits;
+          investidoTrafego += spend;
+        } else if (purchases === 0 && spend > 0) {
+          // Campanha sem compras e sem visitas rastreadas: conta só o investimento
           investidoTrafego += spend;
         }
       }

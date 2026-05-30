@@ -55,7 +55,7 @@ export function Dashboard() {
         {/* Glow dourado na base */}
         <div
           className="absolute -bottom-24 left-1/2 h-48 w-[120%] -translate-x-1/2 rounded-[100%] blur-3xl opacity-50"
-          style={{ background: "radial-gradient(closest-side, oklch(0.72 0.13 75 / 0.6), transparent)" }}
+          style={{ background: "radial-gradient(closest-side, oklch(0.55 0.12 82 / 0.35), transparent)" }}
           aria-hidden
         />
 

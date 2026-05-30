@@ -65,6 +65,8 @@ const PROFILE_VISIT_ACTIONS = [
   "instagram_view_profile",
   "profile_visit",
   "onsite_conversion.view_profile",
+  "onsite_conversion.flow_complete",
+  "view_profile",
 ];
 
 function creds() {
@@ -188,7 +190,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       const [summaryRes, chartRes, campaignsRes, adsRes, hourlyRes] = await Promise.all([
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS},unique_actions}&limit=50&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?level=ad&fields=${AD_FIELDS}&${dp}&limit=100&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${HOURLY_FIELDS}&${dp}&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&access_token=${token}`),
       ]);
@@ -210,17 +212,19 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       for (const c of allCampaigns) {
         const insight = c.insights?.data?.[0];
         if (!insight) continue;
-        const spend     = parseFloat(insight.spend ?? "0");
-        const actions   = insight.actions ?? [];
-        const purchases = getActionInt(actions, ...PURCHASE_ACTIONS);
-        const visits    = getActionInt(actions, ...PROFILE_VISIT_ACTIONS);
+        const spend          = parseFloat(insight.spend ?? "0");
+        const actions        = insight.actions         ?? [];
+        const uniqueActions  = insight.unique_actions  ?? [];
+        const purchases      = getActionInt(actions, ...PURCHASE_ACTIONS);
 
-        // Só conta nesta seção se a campanha gerou visitas ao perfil
+        // Tenta obter visitas de actions primeiro, depois unique_actions
+        let visits = getActionInt(actions, ...PROFILE_VISIT_ACTIONS);
+        if (visits === 0) visits = getActionInt(uniqueActions, ...PROFILE_VISIT_ACTIONS);
+
         if (visits > 0) {
           profileVisits    += visits;
           investidoTrafego += spend;
         } else if (purchases === 0 && spend > 0) {
-          // Campanha sem compras e sem visitas rastreadas: conta só o investimento
           investidoTrafego += spend;
         }
       }

@@ -28,7 +28,7 @@ import { currency } from "@/lib/utils";
 import { fetchDashboardData } from "@/lib/api/facebook.functions";
 
 export function Dashboard() {
-  const [period, setPeriod] = useState<Period>("7 dias");
+  const [period, setPeriod] = useState<Period>("Hoje");
   const [customRange, setCustomRange] = useState<DateRange | undefined>();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -284,7 +284,7 @@ export function Dashboard() {
         )}
 
         {/* ── Tráfego & Engajamento ──────────────────────────────── */}
-        {s && s.investidoTrafego > 0 && (
+        {s && (s.profileVisits > 0 || s.investidoTrafego > 0) && (
           <section className="rounded-3xl border border-white/10 bg-card/80 p-5 shadow-soft backdrop-blur-xl">
             <h2 className="text-sm font-bold text-foreground">Tráfego & Seguidores</h2>
             <p className="text-xs text-muted-foreground mb-4">Campanhas de visitas e engajamento</p>

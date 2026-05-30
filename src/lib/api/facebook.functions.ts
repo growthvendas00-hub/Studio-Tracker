@@ -184,36 +184,31 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       // 3. Summary com ROAS correto do Facebook
       const m = parsePurchases(summaryJson.data?.[0]);
 
-      // 4. Visitas ao perfil e investimento em tráfego/seguidores
-      const allCampaigns = campaignsJson.data ?? [];
+      // 4. Visitas ao perfil — pega direto dos insights da conta (mais confiável que filtrar por campanha)
+      const allCampaigns  = campaignsJson.data ?? [];
+      const accountActions = summaryJson.data?.[0]?.actions ?? [];
 
-      const trafficCampaigns = allCampaigns.filter((c: any) => {
-        const obj = (c.objective ?? "").toUpperCase();
-        return obj !== "OUTCOME_SALES" && obj !== "CONVERSIONS" && obj !== "PRODUCT_CATALOG_SALES";
-      });
+      // Visitas ao perfil do Instagram (conta inteira)
+      let profileVisits = getActionInt(accountActions, ...PROFILE_VISIT_ACTIONS);
 
-      let profileVisits = 0;
+      // Fallback: se não encontrou visitas específicas, usa link_clicks de tráfego
+      if (profileVisits === 0) {
+        profileVisits = getActionInt(accountActions,
+          "link_click", "landing_page_view", "view_content"
+        );
+      }
+
+      // investidoTrafego = gasto em campanhas que NÃO geraram nenhuma compra
+      // (independente do objetivo cadastrado, pois o objetivo pode variar)
       let investidoTrafego = 0;
-
-      for (const c of trafficCampaigns) {
-        const insight = c.insights?.data?.[0];
+      for (const c of allCampaigns) {
+        const insight  = c.insights?.data?.[0];
         if (!insight) continue;
-        investidoTrafego += parseFloat(insight.spend ?? "0");
-
-        const actions = insight.actions ?? [];
-
-        // Tenta ação específica de visita ao perfil primeiro
-        const specificVisits = getActionInt(actions, ...PROFILE_VISIT_ACTIONS);
-
-        if (specificVisits > 0) {
-          profileVisits += specificVisits;
-        } else {
-          // Fallback: qualquer ação de engajamento/tráfego desta campanha
-          const fallback = getActionInt(actions,
-            "link_click", "landing_page_view", "view_content",
-            "post_engagement", "page_engagement"
-          );
-          profileVisits += fallback;
+        const spend    = parseFloat(insight.spend ?? "0");
+        if (spend === 0) continue;
+        const purchases = getActionInt(insight.actions ?? [], "purchase", "omni_purchase");
+        if (purchases === 0) {
+          investidoTrafego += spend;
         }
       }
 

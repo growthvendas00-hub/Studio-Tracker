@@ -41,6 +41,8 @@ export type Creative = {
   thumbnail: string;
   compras: number;
   retorno: number;
+  investido: number;
+  roas: number;
   ctr: number;
 };
 

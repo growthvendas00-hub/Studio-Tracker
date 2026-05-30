@@ -187,7 +187,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/ads?fields=id,name,creative{id,title,name,video_id},insights.${edp}{${FIELDS},impressions,clicks}&limit=50&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/ads?fields=id,name,insights.${edp}{${FIELDS},impressions,clicks}&limit=50&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${HOURLY_FIELDS}&${dp}&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&access_token=${token}`),
       ]);
 
@@ -256,60 +256,47 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         })
         .sort((a: any, b: any) => b.retorno - a.retorno);
 
-      // 7. Criativos — agrupados por creative.id (evita duplicatas do mesmo criativo em vários anúncios)
-      const creativeMap = new Map<string, {
-        nome: string; tipo: "Vídeo" | "Imagem"; thumbnail: string;
-        compras: number; retorno: number; clicks: number; impressions: number;
-      }>();
+      // 7. Criativos — anúncios individuais ordenados por compras → retorno → CTR
+      const adsData = adsJson.data ?? [];
 
-      for (const ad of adsJson.data ?? []) {
-        const cId    = ad.creative?.id ?? ad.id;
-        // Prioridade de nome: título do criativo → nome do criativo → nome do anúncio
-        const cName  = ad.creative?.title || ad.creative?.name || ad.name;
-        const isVid  = !!ad.creative?.video_id;
+      const adsList = adsData.map((ad: any, i: number) => {
         const ins    = ad.insights?.data?.[0];
         const am     = parsePurchases(ins);
         const clicks = parseInt(ins?.clicks      ?? "0", 10);
         const imps   = parseInt(ins?.impressions ?? "0", 10);
+        return {
+          id:        i + 1,
+          nome:      ad.name as string,
+          tipo:      "Imagem" as "Vídeo" | "Imagem",
+          thumbnail: "📊",
+          compras:   am.compras,
+          retorno:   round2(am.retorno),
+          investido: round2(am.investido),
+          roas:      round2(am.roas),
+          ctr:       imps > 0 ? round2((clicks / imps) * 100) : 0,
+        };
+      });
 
-        if (creativeMap.has(cId)) {
-          const e = creativeMap.get(cId)!;
-          e.compras     += am.compras;
-          e.retorno     += am.retorno;
-          e.clicks      += clicks;
-          e.impressions += imps;
-        } else {
-          creativeMap.set(cId, {
-            nome:        cName,
-            tipo:        isVid ? "Vídeo" : "Imagem",
-            thumbnail:   isVid ? "🎬" : "🖼️",
-            compras:     am.compras,
-            retorno:     am.retorno,
-            clicks,
-            impressions: imps,
-          });
-        }
-      }
-
-      const allCreatives = Array.from(creativeMap.values()).map((c, i) => ({
+      // Fallback: se ads não retornou dados, usa campanhas como criativos
+      const sourceList = adsList.length > 0 ? adsList : campaigns.map((c, i) => ({
         id:        i + 1,
         nome:      c.nome,
-        tipo:      c.tipo,
-        thumbnail: c.thumbnail,
+        tipo:      "Imagem" as "Vídeo" | "Imagem",
+        thumbnail: "📊",
         compras:   c.compras,
-        retorno:   round2(c.retorno),
-        ctr:       c.impressions > 0 ? round2((c.clicks / c.impressions) * 100) : 0,
+        retorno:   c.retorno,
+        investido: c.investido,
+        roas:      c.roas,
+        ctr:       0,
       }));
 
-      // Top 4: ordena por compras → retorno → CTR
-      // Mostra qualquer anúncio com dados (impressions ou spend > 0)
-      const creatives = [...allCreatives]
+      const creatives = [...sourceList]
         .sort((a, b) => {
           if (b.compras !== a.compras) return b.compras - a.compras;
           if (b.retorno !== a.retorno) return b.retorno - a.retorno;
           return b.ctr - a.ctr;
         })
-        .slice(0, 4);
+        .slice(0, 6);
 
       // 8. Dados por hora do dia (pico de vendas)
       // A API retorna "HH:00:00 - HH+1:00:00" no campo de breakdown

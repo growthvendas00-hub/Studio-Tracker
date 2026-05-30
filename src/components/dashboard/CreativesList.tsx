@@ -1,4 +1,3 @@
-import { Play, Image as ImageIcon } from "lucide-react";
 import { currency } from "@/lib/utils";
 import type { Creative } from "./data";
 
@@ -12,38 +11,38 @@ export function CreativesList({ creatives }: CreativesListProps) {
       {creatives.map((c, i) => (
         <li
           key={c.id}
-          className="flex items-center gap-3 rounded-2xl border border-white/10 bg-card/80 p-3 shadow-soft backdrop-blur-xl transition active:scale-[0.99]"
+          className="rounded-2xl border border-white/10 bg-card/80 p-4 shadow-soft backdrop-blur-xl"
         >
-          <div
-            className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-2xl"
-            style={{ background: "var(--gradient-warm)" }}
-          >
-            {c.thumbnail}
-            <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-foreground text-background shadow-soft">
-              {c.tipo === "Vídeo" ? (
-                <Play className="h-2.5 w-2.5 fill-current" />
-              ) : (
-                <ImageIcon className="h-2.5 w-2.5" />
-              )}
-            </span>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-muted-foreground">#{i + 1}</span>
-              <p className="line-clamp-2 text-sm font-bold text-foreground leading-snug">{c.nome}</p>
+          {/* Rank + nome */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
+                #{i + 1}
+              </span>
+              <p className="text-sm font-bold text-foreground leading-snug line-clamp-2">{c.nome}</p>
             </div>
-            <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
-              <span>
-                <strong className="text-foreground">{c.compras}</strong> compras
-              </span>
-              <span>
-                CTR <strong className="text-foreground">{c.ctr}%</strong>
-              </span>
+            <div className="shrink-0 text-right">
+              <p className="text-base font-bold text-primary">
+                {c.roas > 0 ? `${c.roas.toFixed(2)}x` : "—"}
+              </p>
+              <p className="text-[10px] text-muted-foreground">ROAS</p>
             </div>
           </div>
-          <div className="shrink-0 text-right">
-            <p className="text-sm font-bold text-foreground">{currency(c.retorno)}</p>
-            <p className="text-[10px] text-muted-foreground">retorno</p>
+
+          {/* Métricas */}
+          <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Investido</p>
+              <p className="mt-0.5 text-xs font-bold text-foreground">{currency(c.investido)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Retorno</p>
+              <p className="mt-0.5 text-xs font-bold text-foreground">{currency(c.retorno)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Compras</p>
+              <p className="mt-0.5 text-xs font-bold text-foreground">{c.compras}</p>
+            </div>
           </div>
         </li>
       ))}

@@ -187,7 +187,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/ads?fields=id,name,insights.${edp}{${FIELDS},impressions,clicks}&limit=50&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/insights?level=ad&fields=ad_id,ad_name,${FIELDS},impressions,clicks&${dp}&limit=100&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${HOURLY_FIELDS}&${dp}&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&access_token=${token}`),
       ]);
 
@@ -256,17 +256,17 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         })
         .sort((a: any, b: any) => b.retorno - a.retorno);
 
-      // 7. Criativos — anúncios individuais ordenados por compras → retorno → CTR
+      // 7. Anúncios individuais via insights level=ad
+      // adsJson.data retorna cada linha com ad_id, ad_name e métricas direto
       const adsData = adsJson.data ?? [];
 
       const adsList = adsData.map((ad: any, i: number) => {
-        const ins    = ad.insights?.data?.[0];
-        const am     = parsePurchases(ins);
-        const clicks = parseInt(ins?.clicks      ?? "0", 10);
-        const imps   = parseInt(ins?.impressions ?? "0", 10);
+        const am     = parsePurchases(ad);
+        const clicks = parseInt(ad.clicks      ?? "0", 10);
+        const imps   = parseInt(ad.impressions ?? "0", 10);
         return {
           id:        i + 1,
-          nome:      ad.name as string,
+          nome:      (ad.ad_name ?? ad.name ?? "Anúncio") as string,
           tipo:      "Imagem" as "Vídeo" | "Imagem",
           thumbnail: "📊",
           compras:   am.compras,
@@ -277,7 +277,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         };
       });
 
-      // Fallback: se ads não retornou dados, usa campanhas como criativos
+      // Fallback: se ads não retornou dados, usa campanhas
       const sourceList = adsList.length > 0 ? adsList : campaigns.map((c, i) => ({
         id:        i + 1,
         nome:      c.nome,

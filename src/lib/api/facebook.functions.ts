@@ -88,17 +88,26 @@ function getActionInt(actions: any[], ...types: string[]): number {
   return Math.round(getActionValue(actions, ...types));
 }
 
+// Tipos de ação de compra aceitos pelo Facebook
+// offsite_conversion.fb_pixel_purchase = compra via pixel (mais comum no Brasil)
+const PURCHASE_ACTIONS = [
+  "purchase",
+  "omni_purchase",
+  "offsite_conversion.fb_pixel_purchase",
+  "app_custom_event.fb_mobile_purchase",
+] as const;
+
 function parsePurchases(insight: any) {
   const investido = parseFloat(insight?.spend ?? "0");
 
   const compras = getActionInt(
     insight?.actions ?? [],
-    "purchase", "omni_purchase"
+    ...PURCHASE_ACTIONS
   );
 
   const retorno = getActionValue(
     insight?.action_values ?? [],
-    "purchase", "omni_purchase"
+    ...PURCHASE_ACTIONS
   );
 
   // Usa o ROAS calculado pelo próprio Facebook (exclui do denominador campanhas sem compra)
@@ -292,22 +301,15 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         ctr:       c.impressions > 0 ? round2((c.clicks / c.impressions) * 100) : 0,
       }));
 
-      // Prioridade: 1) com compras (ordena por compras) 2) com retorno 3) por CTR
-      const withPurchases = allCreatives
-        .filter(c => c.compras > 0)
-        .sort((a, b) => b.compras - a.compras)
+      // Top 4: ordena por compras → retorno → CTR
+      // Mostra qualquer anúncio com dados (impressions ou spend > 0)
+      const creatives = [...allCreatives]
+        .sort((a, b) => {
+          if (b.compras !== a.compras) return b.compras - a.compras;
+          if (b.retorno !== a.retorno) return b.retorno - a.retorno;
+          return b.ctr - a.ctr;
+        })
         .slice(0, 4);
-
-      const withReturn = allCreatives
-        .filter(c => c.retorno > 0)
-        .sort((a, b) => b.retorno - a.retorno)
-        .slice(0, 4);
-
-      const creatives = withPurchases.length > 0
-        ? withPurchases
-        : withReturn.length > 0
-          ? withReturn
-          : allCreatives.sort((a, b) => b.ctr - a.ctr).slice(0, 4);
 
       // 8. Dados por hora do dia (pico de vendas)
       // A API retorna "HH:00:00 - HH+1:00:00" no campo de breakdown

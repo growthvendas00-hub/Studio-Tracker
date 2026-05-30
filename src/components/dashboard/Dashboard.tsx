@@ -458,7 +458,7 @@ export function Dashboard() {
         )}
 
         {/* ── Criativos ──────────────────────────────────────────── */}
-        {(isLoading || creatives.length > 0) && (
+        {(isLoading || ok) && (
           <section>
             <div className="mb-3 px-1">
               <h2 className="text-base font-bold text-foreground">Criativos campeões</h2>
@@ -466,7 +466,9 @@ export function Dashboard() {
             </div>
             {isLoading && !ok
               ? <div className="space-y-2.5 animate-pulse">{[...Array(3)].map((_, i) => <div key={i} className="h-16 rounded-2xl bg-card/80 border border-white/10" />)}</div>
-              : <CreativesList creatives={creatives} />
+              : creatives.length > 0
+                ? <CreativesList creatives={creatives} />
+                : <p className="text-xs text-muted-foreground px-1">Nenhum anúncio com dados neste período.</p>
             }
           </section>
         )}

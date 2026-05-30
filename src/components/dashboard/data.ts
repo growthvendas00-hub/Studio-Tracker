@@ -4,10 +4,13 @@ export type Period = (typeof periods)[number];
 export type PeriodSummary = {
   investido: number;
   retorno: number;
+  lucro: number;
   compras: number;
   ticketMedio: number;
   roas: number;
   cpa: number;
+  profileVisits: number;
+  investidoTrafego: number;
   variacao: {
     investido: number;
     retorno: number;

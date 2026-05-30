@@ -144,7 +144,6 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       const m = parsePurchases(summaryJson.data?.[0]);
 
       // 4. Visitas ao perfil e investimento em tráfego/seguidores
-      //    (campanhas sem objetivo de compra)
       const allCampaigns = campaignsJson.data ?? [];
 
       const trafficCampaigns = allCampaigns.filter((c: any) => {
@@ -159,12 +158,21 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         const insight = c.insights?.data?.[0];
         if (!insight) continue;
         investidoTrafego += parseFloat(insight.spend ?? "0");
-        profileVisits += getActionInt(insight.actions ?? [], ...PROFILE_VISIT_ACTIONS);
-        // Se não encontrar tipo específico, soma qualquer resultado de tráfego
-        if (profileVisits === 0) {
-          profileVisits += getActionInt(insight.actions ?? [],
-            "link_click", "view_content", "landing_page_view"
+
+        const actions = insight.actions ?? [];
+
+        // Tenta ação específica de visita ao perfil primeiro
+        const specificVisits = getActionInt(actions, ...PROFILE_VISIT_ACTIONS);
+
+        if (specificVisits > 0) {
+          profileVisits += specificVisits;
+        } else {
+          // Fallback: qualquer ação de engajamento/tráfego desta campanha
+          const fallback = getActionInt(actions,
+            "link_click", "landing_page_view", "view_content",
+            "post_engagement", "page_engagement"
           );
+          profileVisits += fallback;
         }
       }
 

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Bell,
   Calendar,
   TrendingUp,
   TrendingDown,
@@ -11,9 +10,7 @@ import {
   Wallet,
   RefreshCw,
   AlertCircle,
-  TrendingUp as Profit,
   Eye,
-  Users,
 } from "lucide-react";
 import { MetricCard } from "./MetricCard";
 import { PerformanceChart } from "./PerformanceChart";
@@ -49,35 +46,52 @@ export function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background pb-safe">
+
       {/* ── Header ─────────────────────────────────────────────── */}
       <header className="relative overflow-hidden">
+        {/* Gradiente de fundo */}
         <div className="absolute inset-0" style={{ background: "var(--gradient-primary)" }} aria-hidden />
-        <div className="absolute inset-0 opacity-80 mix-blend-screen" style={{ background: "var(--gradient-aurora)" }} aria-hidden />
+        <div className="absolute inset-0 opacity-70 mix-blend-screen" style={{ background: "var(--gradient-aurora)" }} aria-hidden />
+        {/* Glow dourado na base */}
         <div
-          className="absolute -bottom-24 left-1/2 h-48 w-[120%] -translate-x-1/2 rounded-[100%] blur-3xl opacity-60"
-          style={{ background: "radial-gradient(closest-side, oklch(0.72 0.24 305 / 0.7), transparent)" }}
+          className="absolute -bottom-24 left-1/2 h-48 w-[120%] -translate-x-1/2 rounded-[100%] blur-3xl opacity-50"
+          style={{ background: "radial-gradient(closest-side, oklch(0.72 0.13 75 / 0.6), transparent)" }}
           aria-hidden
         />
 
         <div className="relative px-5 pt-safe pb-20 text-primary-foreground">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium opacity-80">Painel de resultados</p>
-              <h1 className="mt-1 text-xl font-bold tracking-tight">Meta Ads</h1>
+          <div className="flex items-center justify-between gap-3">
+
+            {/* Logo + nome do cliente */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-white/20 bg-black shadow-card">
+                <img
+                  src="/logo.jpg"
+                  alt="Studio Burguer"
+                  className="h-full w-full object-cover"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium opacity-75 truncate">Painel de resultados</p>
+                <h1 className="text-base font-bold tracking-tight truncate">Studio Burguer</h1>
+              </div>
             </div>
+
+            {/* Botão atualizar */}
             <button
               type="button"
               aria-label="Atualizar dados"
               onClick={() => refetch()}
               disabled={isFetching}
-              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/15 backdrop-blur transition hover:bg-white/25 disabled:opacity-50"
+              className="shrink-0 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 backdrop-blur transition hover:bg-white/25 disabled:opacity-50"
             >
               <RefreshCw className={`h-5 w-5 ${isFetching ? "animate-spin" : ""}`} />
             </button>
           </div>
 
           {/* Period selector */}
-          <div className="mt-6 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 hide-scrollbar">
+          <div className="mt-5 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 hide-scrollbar">
             {periods.map((p) => (
               <button
                 key={p}
@@ -98,7 +112,8 @@ export function Dashboard() {
         </div>
       </header>
 
-      <main className="relative -mt-12 px-4 space-y-5">
+      <main className="relative -mt-12 px-4 space-y-4">
+
         {/* ── Erro ───────────────────────────────────────────────── */}
         {apiError && (
           <section className="rounded-2xl border border-destructive/30 bg-destructive/10 p-4">
@@ -118,11 +133,11 @@ export function Dashboard() {
         {/* ── Skeleton hero ──────────────────────────────────────── */}
         {isLoading && !ok && (
           <section className="rounded-3xl border border-white/10 bg-card/80 p-5 shadow-card animate-pulse">
-            <div className="h-4 w-32 rounded bg-muted" />
-            <div className="mt-3 h-10 w-48 rounded bg-muted" />
-            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4">
-              <div className="h-8 rounded bg-muted" />
-              <div className="h-8 rounded bg-muted" />
+            <div className="h-3 w-28 rounded bg-muted" />
+            <div className="mt-3 h-9 w-44 rounded bg-muted" />
+            <div className="mt-3 h-6 w-36 rounded-full bg-muted" />
+            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-4">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-8 rounded bg-muted" />)}
             </div>
           </section>
         )}
@@ -133,22 +148,21 @@ export function Dashboard() {
             className="relative overflow-hidden rounded-3xl border border-white/10 p-5 shadow-card backdrop-blur-xl"
             style={{ background: "var(--gradient-card)" }}
           >
+            {/* Glow dourado decorativo */}
             <div
-              className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full opacity-50 blur-3xl"
+              className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full opacity-40 blur-3xl"
               style={{ background: "var(--primary-glow)" }}
               aria-hidden
             />
 
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-muted-foreground">Retorno bruto no período</p>
-            </div>
-            <p className="mt-2 text-3xl font-bold tracking-tight text-foreground truncate">
+            <p className="text-xs font-medium text-muted-foreground">Retorno bruto no período</p>
+            <p className="mt-1.5 text-3xl font-bold tracking-tight text-foreground truncate">
               {currency(s.retorno)}
             </p>
 
-            {/* Lucro Líquido em destaque */}
+            {/* Lucro líquido */}
             <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1">
-              <Profit className="h-3.5 w-3.5 text-success" />
+              <TrendingUp className="h-3.5 w-3.5 text-success" />
               <span className="text-xs font-bold text-success">
                 Lucro líquido: {currency(s.lucro)}
               </span>
@@ -191,42 +205,50 @@ export function Dashboard() {
         )}
 
         {/* ── Tráfego & Engajamento ──────────────────────────────── */}
-        {s && (s.profileVisits > 0 || s.investidoTrafego > 0) && (
+        {s && s.investidoTrafego > 0 && (
           <section className="rounded-3xl border border-white/10 bg-card/80 p-5 shadow-soft backdrop-blur-xl">
             <h2 className="text-sm font-bold text-foreground">Tráfego & Seguidores</h2>
-            <p className="text-xs text-muted-foreground">Campanhas de visitas e engajamento</p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <p className="text-xs text-muted-foreground mb-4">Campanhas de visitas e engajamento</p>
+
+            <div className="grid grid-cols-2 gap-3">
               <div className="flex items-start gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent">
                   <Eye className="h-4 w-4 text-accent-foreground" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Visitas ao perfil</p>
                   <p className="mt-0.5 text-lg font-bold text-foreground">
-                    {s.profileVisits.toLocaleString("pt-BR")}
+                    {s.profileVisits > 0 ? s.profileVisits.toLocaleString("pt-BR") : "—"}
                   </p>
                 </div>
               </div>
               <div className="flex items-start gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent">
                   <Wallet className="h-4 w-4 text-accent-foreground" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Investido</p>
-                  <p className="mt-0.5 text-lg font-bold text-foreground">
+                  <p className="mt-0.5 text-lg font-bold text-foreground truncate">
                     {currency(s.investidoTrafego)}
                   </p>
                 </div>
               </div>
             </div>
-            {s.profileVisits > 0 && s.investidoTrafego > 0 && (
-              <p className="mt-3 text-[11px] text-muted-foreground">
-                Custo por visita:{" "}
-                <strong className="text-foreground">
-                  {currency(s.investidoTrafego / s.profileVisits)}
-                </strong>
+
+            {/* Custo por visita — mostra sempre que há dados */}
+            <div className="mt-4 rounded-2xl bg-background/40 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Custo por visita</p>
+              <p className="mt-0.5 text-base font-bold text-foreground">
+                {s.profileVisits > 0
+                  ? currency(s.investidoTrafego / s.profileVisits)
+                  : "—"}
               </p>
-            )}
+              {s.profileVisits === 0 && (
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  Visitas não rastreadas neste período
+                </p>
+              )}
+            </div>
           </section>
         )}
 
@@ -289,10 +311,11 @@ export function Dashboard() {
           <section className="rounded-3xl border border-white/10 bg-card/80 p-8 text-center">
             <p className="text-sm font-semibold text-foreground">Nenhuma campanha encontrada</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Não há campanhas ativas ou com dados para este período.
+              Não há campanhas ativas para este período.
             </p>
           </section>
         )}
+
       </main>
     </div>
   );

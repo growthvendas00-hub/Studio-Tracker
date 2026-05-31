@@ -186,45 +186,55 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       const edp = embeddedDateParam(period, since, until);
       const HOURLY_FIELDS = "spend,actions,action_values";
 
-      // 2. Busca tudo em paralelo (inclui breakdown por hora)
-      const [summaryRes, chartRes, campaignsRes, adsRes, hourlyRes] = await Promise.all([
+      // 2. Busca tudo em paralelo
+      // campInsRes: insights diretos level=campaign (retorna TODOS os action_types,
+      //             inclusive instagram_view_profile que não aparece no embedded)
+      const [summaryRes, chartRes, campaignsRes, adsRes, hourlyRes, campInsRes] = await Promise.all([
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS},unique_actions}&limit=50&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?level=ad&fields=${AD_FIELDS}&${dp}&limit=100&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${HOURLY_FIELDS}&${dp}&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&access_token=${token}`),
+        fetch(`${GRAPH}/${acId}/insights?level=campaign&fields=campaign_id,actions,spend&${dp}&limit=50&access_token=${token}`),
       ]);
 
-      const [summaryJson, chartJson, campaignsJson, adsJson, hourlyJson] = await Promise.all([
-        summaryRes.json(), chartRes.json(), campaignsRes.json(), adsRes.json(), hourlyRes.json(),
+      const [summaryJson, chartJson, campaignsJson, adsJson, hourlyJson, campInsJson] = await Promise.all([
+        summaryRes.json(), chartRes.json(), campaignsRes.json(), adsRes.json(), hourlyRes.json(), campInsRes.json(),
       ]);
 
       // 3. Summary com ROAS correto do Facebook
       const m = parsePurchases(summaryJson.data?.[0]);
 
       // 4. Visitas ao perfil e investimento em tráfego
-      // Filtra APENAS campanhas que geraram visitas ao perfil (não conta inteira)
       const allCampaigns = campaignsJson.data ?? [];
 
-      let profileVisits   = 0;
+      // Mapa campaign_id → actions da chamada direta (retorna todos os action_types)
+      const campInsMap = new Map<string, any[]>();
+      for (const row of campInsJson.data ?? []) {
+        if (row.campaign_id) campInsMap.set(row.campaign_id, row.actions ?? []);
+      }
+
+      let profileVisits    = 0;
       let investidoTrafego = 0;
 
       for (const c of allCampaigns) {
         const insight = c.insights?.data?.[0];
         if (!insight) continue;
-        const spend          = parseFloat(insight.spend ?? "0");
-        const actions        = insight.actions         ?? [];
-        const uniqueActions  = insight.unique_actions  ?? [];
-        const purchases      = getActionInt(actions, ...PURCHASE_ACTIONS);
+        const spend     = parseFloat(insight.spend ?? "0");
+        if (spend === 0) continue;
 
-        // Tenta obter visitas de actions primeiro, depois unique_actions
-        let visits = getActionInt(actions, ...PROFILE_VISIT_ACTIONS);
-        if (visits === 0) visits = getActionInt(uniqueActions, ...PROFILE_VISIT_ACTIONS);
+        // Usa actions do insight embedded para calcular compras
+        const embActions = insight.actions ?? [];
+        const purchases  = getActionInt(embActions, ...PURCHASE_ACTIONS);
+
+        // Usa a chamada direta (level=campaign) para obter visitas — mais completa
+        const directActions = campInsMap.get(c.id) ?? embActions;
+        const visits = getActionInt(directActions, ...PROFILE_VISIT_ACTIONS);
 
         if (visits > 0) {
           profileVisits    += visits;
           investidoTrafego += spend;
-        } else if (purchases === 0 && spend > 0) {
+        } else if (purchases === 0) {
           investidoTrafego += spend;
         }
       }

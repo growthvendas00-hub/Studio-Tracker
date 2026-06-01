@@ -340,7 +340,7 @@ export function Dashboard() {
                   <Eye className="h-4 w-4 text-accent-foreground" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Visitas ao perfil</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cliques / Visitas</p>
                   <p className="mt-0.5 text-lg font-bold text-foreground">
                     {s.profileVisits > 0 ? s.profileVisits.toLocaleString("pt-BR") : "—"}
                   </p>
@@ -359,9 +359,9 @@ export function Dashboard() {
               </div>
             </div>
 
-            {/* Custo por visita */}
+            {/* Custo por clique/visita */}
             <div className="mt-4 rounded-2xl bg-background/40 px-4 py-3">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Custo por visita</p>
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Custo por clique</p>
               <p className="mt-0.5 text-base font-bold text-foreground">
                 {s.profileVisits > 0 && s.investidoTrafego > 0
                   ? currencyFull(s.investidoTrafego / s.profileVisits)
@@ -370,7 +370,7 @@ export function Dashboard() {
               {(s.profileVisits === 0 || s.investidoTrafego === 0) && (
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
                   {s.investidoTrafego > 0
-                    ? "Visitas ao perfil não rastreadas neste período"
+                    ? "Cliques não rastreados neste período"
                     : "Sem investimento em tráfego neste período"}
                 </p>
               )}

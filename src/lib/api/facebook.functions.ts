@@ -60,15 +60,6 @@ function fmtDatePtBR(d: string) {
 
 const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-// Tipos de ação que indicam visita ao perfil Instagram
-const PROFILE_VISIT_ACTIONS = [
-  "instagram_view_profile",
-  "profile_visit",
-  "onsite_conversion.view_profile",
-  "onsite_conversion.flow_complete",
-  "view_profile",
-];
-
 function creds() {
   const token      = process.env.META_ACCESS_TOKEN;
   const businessId = process.env.META_BUSINESS_ACCOUNT_ID;
@@ -90,20 +81,6 @@ function getActionInt(actions: any[], ...types: string[]): number {
   return Math.round(getActionValue(actions, ...types));
 }
 
-// Busca por substring no action_type (case-insensitive).
-// Usado para visitas ao perfil, cujo nome exato varia entre contas/versões da API
-// (ex.: instagram_view_profile, onsite_conversion.ig_profile_visit, etc.)
-function getActionValueFuzzy(actions: any[], ...needles: string[]): number {
-  if (!actions) return 0;
-  let total = 0;
-  for (const a of actions) {
-    const type = String(a.action_type ?? "").toLowerCase();
-    if (needles.some((n) => type.includes(n))) {
-      total += parseFloat(a.value ?? "0");
-    }
-  }
-  return Math.round(total);
-}
 
 // Tipos de ação de compra aceitos pelo Facebook
 // offsite_conversion.fb_pixel_purchase = compra via pixel (mais comum no Brasil)
@@ -202,81 +179,46 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       const HOURLY_FIELDS = "spend,actions,action_values";
 
       // 2. Busca tudo em paralelo
-      // campInsRes: insights diretos level=campaign (retorna TODOS os action_types,
-      //             inclusive instagram_view_profile que não aparece no embedded)
-      const [summaryRes, chartRes, campaignsRes, adsRes, hourlyRes, campInsRes] = await Promise.all([
+      const [summaryRes, chartRes, campaignsRes, adsRes, hourlyRes] = await Promise.all([
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${FIELDS}&${dp}&time_increment=${inc}&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/campaigns?fields=id,name,status,objective,insights.${edp}{${FIELDS}}&limit=50&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?level=ad&fields=${AD_FIELDS}&${dp}&limit=100&access_token=${token}`),
         fetch(`${GRAPH}/${acId}/insights?fields=${HOURLY_FIELDS}&${dp}&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&access_token=${token}`),
-        fetch(`${GRAPH}/${acId}/insights?level=campaign&fields=campaign_id,actions,spend&${dp}&limit=50&access_token=${token}`),
       ]);
 
-      const [summaryJson, chartJson, campaignsJson, adsJson, hourlyJson, campInsJson] = await Promise.all([
-        summaryRes.json(), chartRes.json(), campaignsRes.json(), adsRes.json(), hourlyRes.json(), campInsRes.json(),
+      const [summaryJson, chartJson, campaignsJson, adsJson, hourlyJson] = await Promise.all([
+        summaryRes.json(), chartRes.json(), campaignsRes.json(), adsRes.json(), hourlyRes.json(),
       ]);
 
       // 3. Summary com ROAS correto do Facebook
       const m = parsePurchases(summaryJson.data?.[0]);
 
       // 4. Visitas ao perfil e investimento em tráfego
+      // A API do Facebook NÃO expõe "Visitas ao perfil do Instagram" como action_type.
+      // Para campanhas OUTCOME_TRAFFIC (Instagram - Visitas), o evento rastreado é
+      // link_click — é o que o Facebook reporta como "visita" nessas campanhas.
       const allCampaigns = campaignsJson.data ?? [];
-
-      // Mapa campaign_id → actions da chamada direta (retorna todos os action_types)
-      const campInsMap = new Map<string, any[]>();
-      for (const row of campInsJson.data ?? []) {
-        if (row.campaign_id) campInsMap.set(row.campaign_id, row.actions ?? []);
-      }
 
       let profileVisits    = 0;
       let investidoTrafego = 0;
-      const debugActionTypes = new Set<string>();
-      const debugCampaigns: any[] = [];
 
       for (const c of allCampaigns) {
         const insight = c.insights?.data?.[0];
         if (!insight) continue;
-        const spend     = parseFloat(insight.spend ?? "0");
+        const spend = parseFloat(insight.spend ?? "0");
         if (spend === 0) continue;
 
-        // Usa actions do insight embedded para calcular compras
-        const embActions = insight.actions ?? [];
-        const purchases  = getActionInt(embActions, ...PURCHASE_ACTIONS);
+        const actions   = insight.actions ?? [];
+        const purchases = getActionInt(actions, ...PURCHASE_ACTIONS);
 
-        // Combina actions da chamada direta (level=campaign) + embedded
-        const directActions = campInsMap.get(c.id) ?? [];
-        const allActions    = [...directActions, ...embActions];
+        // Só campanhas de tráfego (sem compra) entram nesta seção
+        if (purchases > 0) continue;
 
-        // Coleta todos os action_types para debug
-        for (const a of allActions) debugActionTypes.add(String(a.action_type ?? ""));
-
-        // Detecção fuzzy: qualquer action_type contendo "profile" ou "ig_" de visita
-        const visits = getActionValueFuzzy(allActions, "profile", "view_profile", "ig_profile");
-
-        // Debug: dump de campanhas de tráfego (sem compra) com seus action_types
-        if (purchases === 0) {
-          debugCampaigns.push({
-            nome: c.name,
-            objetivo: c.objective,
-            spend,
-            actions: allActions.map((a: any) => `${a.action_type}=${a.value}`),
-          });
-        }
-
-        if (visits > 0) {
-          profileVisits    += visits;
-          investidoTrafego += spend;
-        } else if (purchases === 0) {
-          investidoTrafego += spend;
-        }
-      }
-
-      // Fallback: se nenhuma visita encontrada nas campanhas, tenta no resumo da conta
-      if (profileVisits === 0) {
-        const accActions = summaryJson.data?.[0]?.actions ?? [];
-        for (const a of accActions) debugActionTypes.add(String(a.action_type ?? ""));
-        profileVisits = getActionValueFuzzy(accActions, "profile", "view_profile", "ig_profile");
+        // Visitas ≈ cliques no link (métrica de resultado das campanhas de tráfego/perfil)
+        const visits = getActionInt(actions, "link_click");
+        profileVisits    += visits;
+        investidoTrafego += spend;
       }
 
       // 5. Chart
@@ -405,7 +347,6 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         chartLabel: isCustom
           ? `${fmtDatePtBR(since!)} a ${fmtDatePtBR(until!)}`
           : CHART_LABEL[period],
-        _debug: { actionTypes: Array.from(debugActionTypes).sort(), campaigns: debugCampaigns },
       };
     } catch (err) {
       console.error("[Facebook API]", err);

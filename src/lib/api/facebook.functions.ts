@@ -232,6 +232,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       let profileVisits    = 0;
       let investidoTrafego = 0;
       const debugActionTypes = new Set<string>();
+      const debugCampaigns: any[] = [];
 
       for (const c of allCampaigns) {
         const insight = c.insights?.data?.[0];
@@ -252,6 +253,16 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
 
         // Detecção fuzzy: qualquer action_type contendo "profile" ou "ig_" de visita
         const visits = getActionValueFuzzy(allActions, "profile", "view_profile", "ig_profile");
+
+        // Debug: dump de campanhas de tráfego (sem compra) com seus action_types
+        if (purchases === 0) {
+          debugCampaigns.push({
+            nome: c.name,
+            objetivo: c.objective,
+            spend,
+            actions: allActions.map((a: any) => `${a.action_type}=${a.value}`),
+          });
+        }
 
         if (visits > 0) {
           profileVisits    += visits;
@@ -394,7 +405,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         chartLabel: isCustom
           ? `${fmtDatePtBR(since!)} a ${fmtDatePtBR(until!)}`
           : CHART_LABEL[period],
-        _debug: { actionTypes: Array.from(debugActionTypes).sort() },
+        _debug: { actionTypes: Array.from(debugActionTypes).sort(), campaigns: debugCampaigns },
       };
     } catch (err) {
       console.error("[Facebook API]", err);

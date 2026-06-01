@@ -90,6 +90,21 @@ function getActionInt(actions: any[], ...types: string[]): number {
   return Math.round(getActionValue(actions, ...types));
 }
 
+// Busca por substring no action_type (case-insensitive).
+// Usado para visitas ao perfil, cujo nome exato varia entre contas/versões da API
+// (ex.: instagram_view_profile, onsite_conversion.ig_profile_visit, etc.)
+function getActionValueFuzzy(actions: any[], ...needles: string[]): number {
+  if (!actions) return 0;
+  let total = 0;
+  for (const a of actions) {
+    const type = String(a.action_type ?? "").toLowerCase();
+    if (needles.some((n) => type.includes(n))) {
+      total += parseFloat(a.value ?? "0");
+    }
+  }
+  return Math.round(total);
+}
+
 // Tipos de ação de compra aceitos pelo Facebook
 // offsite_conversion.fb_pixel_purchase = compra via pixel (mais comum no Brasil)
 const PURCHASE_ACTIONS = [
@@ -216,6 +231,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
 
       let profileVisits    = 0;
       let investidoTrafego = 0;
+      const debugActionTypes = new Set<string>();
 
       for (const c of allCampaigns) {
         const insight = c.insights?.data?.[0];
@@ -227,9 +243,15 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         const embActions = insight.actions ?? [];
         const purchases  = getActionInt(embActions, ...PURCHASE_ACTIONS);
 
-        // Usa a chamada direta (level=campaign) para obter visitas — mais completa
-        const directActions = campInsMap.get(c.id) ?? embActions;
-        const visits = getActionInt(directActions, ...PROFILE_VISIT_ACTIONS);
+        // Combina actions da chamada direta (level=campaign) + embedded
+        const directActions = campInsMap.get(c.id) ?? [];
+        const allActions    = [...directActions, ...embActions];
+
+        // Coleta todos os action_types para debug
+        for (const a of allActions) debugActionTypes.add(String(a.action_type ?? ""));
+
+        // Detecção fuzzy: qualquer action_type contendo "profile" ou "ig_" de visita
+        const visits = getActionValueFuzzy(allActions, "profile", "view_profile", "ig_profile");
 
         if (visits > 0) {
           profileVisits    += visits;
@@ -237,6 +259,13 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         } else if (purchases === 0) {
           investidoTrafego += spend;
         }
+      }
+
+      // Fallback: se nenhuma visita encontrada nas campanhas, tenta no resumo da conta
+      if (profileVisits === 0) {
+        const accActions = summaryJson.data?.[0]?.actions ?? [];
+        for (const a of accActions) debugActionTypes.add(String(a.action_type ?? ""));
+        profileVisits = getActionValueFuzzy(accActions, "profile", "view_profile", "ig_profile");
       }
 
       // 5. Chart
@@ -365,6 +394,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         chartLabel: isCustom
           ? `${fmtDatePtBR(since!)} a ${fmtDatePtBR(until!)}`
           : CHART_LABEL[period],
+        _debug: { actionTypes: Array.from(debugActionTypes).sort() },
       };
     } catch (err) {
       console.error("[Facebook API]", err);

@@ -63,9 +63,18 @@ const WEEK_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 function creds() {
   const token      = process.env.META_ACCESS_TOKEN;
   const businessId = process.env.META_BUSINESS_ACCOUNT_ID;
+  // Conta de anúncio fixa (com ou sem prefixo "act_"). Quando definida, a dashboard
+  // usa SÓ essa conta — evita misturar contas de terceiros que entrem na mesma BM.
+  const adAccountId = process.env.META_AD_ACCOUNT_ID?.trim();
   if (!token || !businessId)
     throw new Error("Credenciais Meta não configuradas (META_ACCESS_TOKEN / META_BUSINESS_ACCOUNT_ID)");
-  return { token, businessId };
+  return {
+    token,
+    businessId,
+    adAccountId: adAccountId
+      ? (adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`)
+      : null,
+  };
 }
 
 function getActionValue(actions: any[], ...types: string[]): number {
@@ -140,7 +149,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const { period, since, until } = data;
     try {
-      const { token, businessId } = creds();
+      const { token, businessId, adAccountId } = creds();
       const isCustom = period === "custom" && !!since && !!until;
       const inc = isCustom
         ? customIncrement(since!, until!)
@@ -151,28 +160,35 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
       // Campos para breakdown por anúncio (sem duplicar impressions/clicks)
       const AD_FIELDS = "ad_id,ad_name,spend,actions,action_values,purchase_roas,impressions,clicks";
 
-      // 1. Ad accounts do Business Manager
-      const acRes  = await fetch(
-        `${GRAPH}/${businessId}/owned_ad_accounts?fields=id,name&limit=10&access_token=${token}`
-      );
-      const acJson = await acRes.json();
-
-      let adAccounts: string[] = (acJson.data ?? []).map((a: any) => a.id);
-
-      // Fallback: client_ad_accounts (quando BM age como agência)
-      if (!acJson.error && adAccounts.length === 0) {
-        const clientRes  = await fetch(
-          `${GRAPH}/${businessId}/client_ad_accounts?fields=id,name&limit=10&access_token=${token}`
+      // 1. Conta de anúncio: fixa via META_AD_ACCOUNT_ID, ou descoberta no Business Manager.
+      // Sem a env var, a BM pode listar contas de TERCEIROS (BM compartilhada) e a
+      // "primeira da lista" mudar — por isso a conta fixa tem prioridade total.
+      let acId: string;
+      if (adAccountId) {
+        acId = adAccountId;
+      } else {
+        const acRes  = await fetch(
+          `${GRAPH}/${businessId}/owned_ad_accounts?fields=id,name&limit=10&access_token=${token}`
         );
-        const clientJson = await clientRes.json();
-        adAccounts = (clientJson.data ?? []).map((a: any) => a.id);
+        const acJson = await acRes.json();
+
+        let adAccounts: string[] = (acJson.data ?? []).map((a: any) => a.id);
+
+        // Fallback: client_ad_accounts (quando BM age como agência)
+        if (!acJson.error && adAccounts.length === 0) {
+          const clientRes  = await fetch(
+            `${GRAPH}/${businessId}/client_ad_accounts?fields=id,name&limit=10&access_token=${token}`
+          );
+          const clientJson = await clientRes.json();
+          adAccounts = (clientJson.data ?? []).map((a: any) => a.id);
+        }
+
+        if (acJson.error) return { success: false as const, error: acJson.error.message };
+        if (adAccounts.length === 0)
+          return { success: false as const, error: "Nenhuma conta de anúncio encontrada no Business Manager." };
+
+        acId = adAccounts[0];
       }
-
-      if (acJson.error) return { success: false as const, error: acJson.error.message };
-      if (adAccounts.length === 0)
-        return { success: false as const, error: "Nenhuma conta de anúncio encontrada no Business Manager." };
-
-      const acId = adAccounts[0];
 
       const dp  = dateParam(period, since, until);
       const edp = embeddedDateParam(period, since, until);

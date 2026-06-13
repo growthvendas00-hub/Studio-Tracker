@@ -75,7 +75,12 @@ npm run dev
    ```
    META_BUSINESS_ACCOUNT_ID = seu_id
    META_ACCESS_TOKEN = seu_token
+   META_AD_ACCOUNT_ID = act_xxxxxxxxxx
    ```
+   > `META_AD_ACCOUNT_ID` fixa a SUA conta de anúncio. Sem ela, a dashboard usa a
+   > primeira conta que a BM listar — numa BM compartilhada isso mistura anúncios
+   > de terceiros. Pegue o ID em Gerenciador de Anúncios → o número após `act=` na
+   > URL (aceita com ou sem o prefixo `act_`).
 5. Redeploy (botão "Redeploy")
 
 ---

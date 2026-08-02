@@ -138,6 +138,13 @@ function dayLabel(dateStr: string, period: string) {
 
 function round2(n: number) { return Math.round(n * 100) / 100; }
 
+function isSalesObjective(objective: string | undefined) {
+  const normalized = (objective ?? "").toUpperCase();
+  return normalized === "OUTCOME_SALES"
+    || normalized === "CONVERSIONS"
+    || normalized === "PRODUCT_CATALOG_SALES";
+}
+
 export const fetchDashboardData = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
@@ -207,10 +214,10 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         summaryRes.json(), chartRes.json(), campaignsRes.json(), adsRes.json(), hourlyRes.json(),
       ]);
 
-      // 3. Summary com ROAS correto do Facebook
+      // 3. Totais gerais da conta
       const m = parsePurchases(summaryJson.data?.[0]);
 
-      // 4. Visitas ao perfil e investimento em tráfego
+      // 4. Separa investimento de vendas do investimento em tráfego/seguidores
       // A API do Facebook NÃO expõe "Visitas ao perfil do Instagram" como action_type.
       // Para campanhas OUTCOME_TRAFFIC (Instagram - Visitas), o evento rastreado é
       // link_click — é o que o Facebook reporta como "visita" nessas campanhas.
@@ -225,17 +232,22 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         const spend = parseFloat(insight.spend ?? "0");
         if (spend === 0) continue;
 
-        const actions   = insight.actions ?? [];
-        const purchases = getActionInt(actions, ...PURCHASE_ACTIONS);
-
-        // Só campanhas de tráfego (sem compra) entram nesta seção
-        if (purchases > 0) continue;
+        // A classificação usa o objetivo, não o resultado do período. Assim, uma
+        // campanha de vendas que ainda não comprou não vira campanha de tráfego.
+        if (isSalesObjective(c.objective)) continue;
 
         // Visitas ≈ cliques no link (métrica de resultado das campanhas de tráfego/perfil)
+        const actions = insight.actions ?? [];
         const visits = getActionInt(actions, "link_click");
         profileVisits    += visits;
         investidoTrafego += spend;
       }
+
+      // O total da conta inclui todos os objetivos. O valor que sustenta ROAS, CPA e
+      // lucro precisa excluir campanhas de tráfego/seguidores.
+      const investidoVendas = Math.max(0, m.investido - investidoTrafego);
+      const roasVendas = investidoVendas > 0 ? m.retorno / investidoVendas : 0;
+      const cpaVendas = m.compras > 0 ? investidoVendas / m.compras : 0;
 
       // 5. Chart
       const chartData = (chartJson.data ?? []).map((d: any) => ({
@@ -251,8 +263,7 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         .filter((c: any) => c.status !== "DELETED" && c.status !== "ARCHIVED")
         .map((c: any, i: number) => {
           const cm  = parsePurchases(c.insights?.data?.[0]);
-          const obj = (c.objective ?? "").toUpperCase();
-          const isSales = obj === "OUTCOME_SALES" || obj === "CONVERSIONS" || obj === "PRODUCT_CATALOG_SALES";
+          const isSales = isSalesObjective(c.objective);
           return {
             id:         i + 1,
             nome:       c.name as string,
@@ -346,12 +357,13 @@ export const fetchDashboardData = createServerFn({ method: "GET" })
         success: true as const,
         summary: {
           investido:       round2(m.investido),
+          investidoVendas: round2(investidoVendas),
           retorno:         round2(m.retorno),
-          lucro:           round2(m.retorno - m.investido),
+          lucro:           round2(m.retorno - investidoVendas),
           compras:         m.compras,
           ticketMedio:     round2(m.ticketMedio),
-          roas:            round2(m.roas),          // ROAS calculado pelo Facebook
-          cpa:             round2(m.cpa),
+          roas:            round2(roasVendas),
+          cpa:             round2(cpaVendas),
           profileVisits,
           investidoTrafego: round2(investidoTrafego),
           variacao: { investido: 0, retorno: 0, compras: 0, roas: 0, ticketMedio: 0 },

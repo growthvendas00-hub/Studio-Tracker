@@ -284,26 +284,78 @@ export function Dashboard() {
               {currency(s.retorno)}
             </p>
 
-            {/* Lucro líquido */}
-            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-success/15 px-3 py-1">
-              <TrendingUp className="h-3.5 w-3.5 text-success" />
-              <span className="text-xs font-bold text-success">
+            {/* Lucro líquido das campanhas de vendas */}
+            <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 ${
+              s.lucro >= 0 ? "bg-success/15" : "bg-destructive/15"
+            }`}>
+              {s.lucro >= 0
+                ? <TrendingUp className="h-3.5 w-3.5 text-success" />
+                : <TrendingDown className="h-3.5 w-3.5 text-destructive" />
+              }
+              <span className={`text-xs font-bold ${s.lucro >= 0 ? "text-success" : "text-destructive"}`}>
                 Lucro líquido: {currency(s.lucro)}
               </span>
             </div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border pt-4">
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Investido</p>
-                <p className="mt-0.5 text-xs font-bold text-foreground truncate">{currency(s.investido)}</p>
+            <div className="mt-5 grid gap-3 border-t border-border pt-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-primary/15 bg-background/35 p-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+                    <ShoppingBag className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Campanhas de vendas</p>
+                    <p className="text-[10px] text-muted-foreground">Indicadores que geram o retorno</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Investido</p>
+                    <p className="mt-1 text-sm font-bold text-foreground truncate">{currency(s.investidoVendas)}</p>
+                  </div>
+                  <div className="min-w-0 border-l border-border pl-3">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">ROAS</p>
+                    <p className="mt-1 text-sm font-bold text-foreground">{s.roas.toFixed(2)}x</p>
+                  </div>
+                  <div className="min-w-0 border-l border-border pl-3">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">CPA</p>
+                    <p className="mt-1 text-sm font-bold text-foreground truncate">{currency(s.cpa)}</p>
+                  </div>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">ROAS</p>
-                <p className="mt-0.5 text-xs font-bold text-foreground">{s.roas.toFixed(2)}x</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">CPA</p>
-                <p className="mt-0.5 text-xs font-bold text-foreground truncate">{currency(s.cpa)}</p>
+
+              <div className="rounded-2xl border border-white/10 bg-background/35 p-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent">
+                    <Eye className="h-4 w-4 text-accent-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Tráfego & Seguidores</p>
+                    <p className="text-[10px] text-muted-foreground">Visitas e engajamento do perfil</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Visitas</p>
+                    <p className="mt-1 text-sm font-bold text-foreground truncate">
+                      {s.profileVisits > 0 ? s.profileVisits.toLocaleString("pt-BR") : "—"}
+                    </p>
+                  </div>
+                  <div className="min-w-0 border-l border-border pl-3">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Custo/visita</p>
+                    <p className="mt-1 text-sm font-bold text-foreground truncate">
+                      {s.profileVisits > 0 && s.investidoTrafego > 0
+                        ? currencyFull(s.investidoTrafego / s.profileVisits)
+                        : "—"}
+                    </p>
+                  </div>
+                  <div className="min-w-0 border-l border-border pl-3">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Investido</p>
+                    <p className="mt-1 text-sm font-bold text-foreground truncate">{currency(s.investidoTrafego)}</p>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -323,14 +375,14 @@ export function Dashboard() {
           <section className="grid grid-cols-2 gap-3">
             <MetricCard icon={ShoppingBag} label="Compras"      value={s.compras.toLocaleString("pt-BR")} delta={s.variacao.compras}     tone="success" />
             <MetricCard icon={DollarSign}  label="Ticket médio" value={currency(s.ticketMedio)}           delta={s.variacao.ticketMedio} tone="success" />
-            <MetricCard icon={Wallet}      label="Investido"    value={currency(s.investido)}             delta={s.variacao.investido}   tone="neutral" />
+            <MetricCard icon={Wallet}      label="Investimento total" value={currency(s.investido)}        delta={s.variacao.investido}   tone="neutral" />
             <MetricCard icon={Target}      label="ROAS"         value={`${s.roas.toFixed(2)}x`}           delta={s.variacao.roas}        tone="success" />
           </section>
         )}
 
         {/* ── Tráfego & Engajamento ──────────────────────────────── */}
         {s && (s.profileVisits > 0 || s.investidoTrafego > 0) && (
-          <section className="rounded-3xl border border-white/10 bg-card/80 p-5 shadow-soft backdrop-blur-xl">
+          <section className="hidden rounded-3xl border border-white/10 bg-card/80 p-5 shadow-soft backdrop-blur-xl">
             <h2 className="text-sm font-bold text-foreground">Tráfego & Seguidores</h2>
             <p className="text-xs text-muted-foreground mb-4">Campanhas de visitas e engajamento</p>
 

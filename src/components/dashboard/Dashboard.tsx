@@ -211,6 +211,7 @@ export function Dashboard() {
 
                 <CalendarPicker
                   mode="single"
+                  required
                   selected={pickerFrom}
                   onSelect={handleDaySelect}
                   disabled={{ after: new Date() }}
